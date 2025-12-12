@@ -1,3 +1,5 @@
+简体中文 | [English](README_EN.md)
+
 # demo
 - 进入示例目录并安装依赖： `cd example && flutter pub get`
 - 按平台启动：
@@ -342,7 +344,7 @@ const UseRequestOptions({
   // ========== 重试配置 ==========
   int? retryCount,                  // 最大重试次数
   Duration? retryInterval,          // 重试间隔
-  bool retryExponential = false,    // 是否使用指数退避
+  bool retryExponential = true,     // 是否使用指数退避
   OnRetryAttempt? onRetryAttempt,   // 每次重试时的回调 (attempt, error) => void
 
   // ========== 超时配置（v2.0 新增）==========
@@ -384,7 +386,7 @@ const UseRequestOptions({
 - 加载更多：提供 `loadMoreParams` 生成下一页参数、`dataMerger` 合并数据、`hasMore` 判定是否还有更多；`UseRequestResult` 暴露 `loadingMore`、`hasMore` 与 `loadMore`/`loadMoreAsync`
 - 轮询策略：`pollingWhenHidden=false` 失焦暂停、前台恢复；`pausePollingOnError` 遇错暂停，若设置 `pollingRetryInterval` 会在该间隔后自动尝试恢复；`refreshOnReconnect` + `reconnectStream` 可在网络恢复时刷新
 - 轮询：`pollingInterval` 不为 `null` 时开启（Hook 版自动轮询；Riverpod 版 additionally 提供 `startPolling()`/`stopPolling()`）
-- 频率控制：二选一或组合使用 `debounceInterval` / `throttleInterval`
+- 频率控制：`debounceInterval` / `throttleInterval` 二选一
 - 重试：`retryCount` 与 `retryInterval` 控制失败重试
 - 延迟 loading：`loadingDelay` 控制进入 loading 的延时，避免闪烁
 - 刷新策略：`refreshOnFocus`、`refreshOnReconnect`（后者为占位，跨平台网络重连尚未统一）
