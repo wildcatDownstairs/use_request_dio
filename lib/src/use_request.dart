@@ -29,9 +29,9 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   String getKey(TParams params) => opts.fetchKey?.call(params) ?? '_default';
 
   // 使用 Hook 的状态管理（ValueNotifier）保证组件响应式更新
-  final stateNotifier = useState(UseRequestState<TData, TParams>(
-    params: opts.defaultParams,
-  ));
+  final stateNotifier = useState(
+    UseRequestState<TData, TParams>(params: opts.defaultParams),
+  );
 
   // 请求取消令牌（按 key）
   final cancelTokenMapRef = useRef<Map<String, CancelToken?>>({});
@@ -95,19 +95,27 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   }, const []);
 
   // 防抖器按配置动态创建/销毁
-  useEffect(() {
-    debouncerRef.value?.dispose();
-    debouncerRef.value = null;
-    if (opts.debounceInterval != null) {
-      debouncerRef.value = Debouncer<TData>(
-        duration: opts.debounceInterval!,
-        leading: opts.debounceLeading,
-        trailing: opts.debounceTrailing,
-        maxWait: opts.debounceMaxWait,
-      );
-    }
-    return null;
-  }, [opts.debounceInterval, opts.debounceLeading, opts.debounceTrailing, opts.debounceMaxWait]);
+  useEffect(
+    () {
+      debouncerRef.value?.dispose();
+      debouncerRef.value = null;
+      if (opts.debounceInterval != null) {
+        debouncerRef.value = Debouncer<TData>(
+          duration: opts.debounceInterval!,
+          leading: opts.debounceLeading,
+          trailing: opts.debounceTrailing,
+          maxWait: opts.debounceMaxWait,
+        );
+      }
+      return null;
+    },
+    [
+      opts.debounceInterval,
+      opts.debounceLeading,
+      opts.debounceTrailing,
+      opts.debounceMaxWait,
+    ],
+  );
 
   // 节流器按配置动态创建/销毁
   useEffect(() {
@@ -125,7 +133,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   }, [opts.throttleInterval, opts.throttleLeading, opts.throttleTrailing]);
 
   // 更新状态的辅助函数
-  void updateState(UseRequestState<TData, TParams> Function(UseRequestState<TData, TParams>) updater) {
+  void updateState(
+    UseRequestState<TData, TParams> Function(UseRequestState<TData, TParams>)
+    updater,
+  ) {
     if (isMountedRef.value) {
       stateNotifier.value = updater(stateNotifier.value);
     }
@@ -149,7 +160,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   }
 
   // 核心请求函数
-  Future<TData> fetchData(String key, TParams params, {bool isLoadMore = false}) async {
+  Future<TData> fetchData(
+    String key,
+    TParams params, {
+    bool isLoadMore = false,
+  }) async {
     // Increment request count per key
     final currentRequestCount = (requestCountMapRef.value[key] ?? 0) + 1;
     requestCountMapRef.value[key] = currentRequestCount;
@@ -184,13 +199,15 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       );
       final cachedData = coordinator.getFresh();
       if (cachedData != null) {
-        updateState((s) => s.copyWith(
-          loading: false,
-          data: cachedData,
-          params: params,
-          clearError: true,
-          requestCount: currentRequestCount,
-        ));
+        updateState(
+          (s) => s.copyWith(
+            loading: false,
+            data: cachedData,
+            params: params,
+            clearError: true,
+            requestCount: currentRequestCount,
+          ),
+        );
 
         // 新鲜时直接返回；陈旧时继续走请求再验证
         if (!coordinator.shouldRevalidate()) {
@@ -201,10 +218,22 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
     // 进入 loading 状态
     if (isLoadMore) {
-      updateState((s) => s.copyWith(loadingMore: true, clearError: true, requestCount: currentRequestCount));
+      updateState(
+        (s) => s.copyWith(
+          loadingMore: true,
+          clearError: true,
+          requestCount: currentRequestCount,
+        ),
+      );
     } else {
       setLoading(true);
-      updateState((s) => s.copyWith(params: params, clearError: true, requestCount: currentRequestCount));
+      updateState(
+        (s) => s.copyWith(
+          params: params,
+          clearError: true,
+          requestCount: currentRequestCount,
+        ),
+      );
     }
 
     try {
@@ -237,7 +266,9 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       // 只处理最新一次请求且仅更新 active key；旧请求结果直接丢弃
       final latestCount = requestCountMapRef.value[key] ?? currentRequestCount;
       final isStaleKey = lastKeyRef.value != key;
-      if (currentRequestCount != latestCount || cancelToken.isCancelled || isStaleKey) {
+      if (currentRequestCount != latestCount ||
+          cancelToken.isCancelled ||
+          isStaleKey) {
         return result;
       }
 
@@ -248,13 +279,16 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
       // 更新成功态
       loadingDelayControllerRef.value?.endLoading();
-      updateState((s) => s.copyWith(
-        loading: false,
-        loadingMore: false,
-        data: mergedResult,
-        clearError: true,
-        hasMore: opts.hasMore?.call(mergedResult) ?? stateNotifier.value.hasMore,
-      ));
+      updateState(
+        (s) => s.copyWith(
+          loading: false,
+          loadingMore: false,
+          data: mergedResult,
+          clearError: true,
+          hasMore:
+              opts.hasMore?.call(mergedResult) ?? stateNotifier.value.hasMore,
+        ),
+      );
 
       // 触发成功回调
       opts.onSuccess?.call(mergedResult, params);
@@ -283,7 +317,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       final latestCount = requestCountMapRef.value[key] ?? currentRequestCount;
       final isStaleKey = lastKeyRef.value != key;
       final isStale = currentRequestCount != latestCount || isStaleKey;
-      final isCancellation = cancelToken.isCancelled ||
+      final isCancellation =
+          cancelToken.isCancelled ||
           e is RequestSupersededException ||
           e is RequestCancelledException ||
           e is RetryCancelledException ||
@@ -295,11 +330,9 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
       // 更新错误态
       loadingDelayControllerRef.value?.endLoading();
-      updateState((s) => s.copyWith(
-        loading: false,
-        loadingMore: false,
-        error: e,
-      ));
+      updateState(
+        (s) => s.copyWith(loading: false, loadingMore: false, error: e),
+      );
 
       // 触发失败回调
       opts.onError?.call(e, params);
@@ -321,12 +354,16 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
     // Apply debounce if configured
     if (debouncerRef.value != null) {
-      return debouncerRef.value!.call(() => fetchData(key, params, isLoadMore: isLoadMore));
+      return debouncerRef.value!.call(
+        () => fetchData(key, params, isLoadMore: isLoadMore),
+      );
     }
 
     // Apply throttle if configured
     if (throttlerRef.value != null) {
-      return throttlerRef.value!.call(() => fetchData(key, params, isLoadMore: isLoadMore));
+      return throttlerRef.value!.call(
+        () => fetchData(key, params, isLoadMore: isLoadMore),
+      );
     }
 
     return fetchData(key, params, isLoadMore: isLoadMore);
@@ -368,7 +405,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     if (opts.loadMoreParams == null) {
       throw StateError('UseRequestOptions.loadMoreParams 未提供，无法加载更多');
     }
-    final nextParams = opts.loadMoreParams!(lastParams as TParams, stateNotifier.value.data);
+    final nextParams = opts.loadMoreParams!(
+      lastParams as TParams,
+      stateNotifier.value.data,
+    );
     return runAsync(nextParams, isLoadMore: true);
   }
 
@@ -404,7 +444,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
   void resumePolling() {
     final lastKey = lastKeyRef.value;
-    final hasParams = lastKey != null && lastParamsMapRef.value[lastKey] != null;
+    final hasParams =
+        lastKey != null && lastParamsMapRef.value[lastKey] != null;
     if (pollingControllerRef.value != null && hasParams && opts.ready) {
       pollingControllerRef.value!.resume();
       pollingActiveRef.value = true;
@@ -427,7 +468,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       if (opts.refreshDepsAction != null) {
         opts.refreshDepsAction!();
       } else if (!opts.manual && opts.ready) {
-        final params = opts.defaultParams ?? (lastKeyRef.value != null ? lastParamsMapRef.value[lastKeyRef.value!] : null);
+        final params =
+            opts.defaultParams ??
+            (lastKeyRef.value != null
+                ? lastParamsMapRef.value[lastKeyRef.value!]
+                : null);
         if (params != null) {
           run(params as TParams);
         }
@@ -438,134 +483,169 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   }, [opts.refreshDeps, opts.ready]);
 
   // 设置轮询控制器（按 pollingInterval 变化重建）
-  useEffect(() {
-    pollingRetryTimerRef.value?.cancel();
-    pollingRetryTimerRef.value = null;
-
-    if (opts.pollingInterval == null) {
-      pollingControllerRef.value?.dispose();
-      pollingControllerRef.value = null;
-      pollingActiveRef.value = false;
-      return null;
-    }
-
-    late final PollingController<TData> controller;
-    controller = PollingController<TData>(
-      interval: opts.pollingInterval!,
-      action: () {
-        final key = lastKeyRef.value;
-        final params = key != null ? lastParamsMapRef.value[key] : null;
-        if (params != null && key != null) {
-          return fetchData(key, params);
-        }
-        throw StateError('No params for polling');
-      },
-      onSuccess: (_) {
-        // Success is already handled in fetchData
-      },
-      onError: (error) {
-        if (opts.pausePollingOnError) {
-          controller.pause();
-          pollingActiveRef.value = false;
-
-          pollingRetryTimerRef.value?.cancel();
-          final retryInterval = opts.pollingRetryInterval;
-          if (retryInterval != null) {
-            pollingRetryTimerRef.value = Timer(retryInterval, () {
-              if (!isMountedRef.value) return;
-              if (pollingControllerRef.value != controller) return;
-
-              final lastKey = lastKeyRef.value;
-              final hasParams = lastKey != null && lastParamsMapRef.value[lastKey] != null;
-              final hasEverRun = stateNotifier.value.requestCount > 0;
-              final shouldAutoStart = !opts.manual;
-              final canPoll = opts.ready && hasParams && (shouldAutoStart || hasEverRun);
-
-              if (canPoll) {
-                if (!controller.isRunning) {
-                  controller.start();
-                } else {
-                  controller.resume();
-                }
-                pollingActiveRef.value = true;
-              }
-            });
-          }
-        }
-      },
-    );
-
-    pollingControllerRef.value = controller;
-
-    return () {
+  useEffect(
+    () {
       pollingRetryTimerRef.value?.cancel();
       pollingRetryTimerRef.value = null;
-      controller.dispose();
-      if (pollingControllerRef.value == controller) {
+
+      if (opts.pollingInterval == null) {
+        pollingControllerRef.value?.dispose();
         pollingControllerRef.value = null;
+        pollingActiveRef.value = false;
+        return null;
       }
-      pollingActiveRef.value = false;
-    };
-  }, [opts.pollingInterval, opts.pausePollingOnError, opts.pollingRetryInterval, opts.manual, opts.ready]);
 
-  // 根据 ready/manual/是否有过请求来启动或暂停轮询
-  useEffect(() {
-    final controller = pollingControllerRef.value;
-    if (controller == null) return null;
-
-    pollingRetryTimerRef.value?.cancel();
-    pollingRetryTimerRef.value = null;
-
-    final lastKey = lastKeyRef.value;
-    final hasParams = lastKey != null && lastParamsMapRef.value[lastKey] != null;
-    final hasEverRun = stateNotifier.value.requestCount > 0;
-    final shouldAutoStart = !opts.manual;
-    final canPoll = opts.pollingInterval != null && opts.ready && hasParams && (shouldAutoStart || hasEverRun);
-
-    if (canPoll) {
-      if (!controller.isRunning) {
-        controller.start();
-      } else {
-        controller.resume();
-      }
-      pollingActiveRef.value = true;
-    } else {
-      controller.pause();
-      pollingActiveRef.value = false;
-    }
-
-    return null;
-  }, [opts.pollingInterval, opts.manual, opts.ready, stateNotifier.value.requestCount]);
-
-  // 设置聚焦刷新
-  useEffect(() {
-    if (opts.refreshOnFocus || (opts.pollingInterval != null && !opts.pollingWhenHidden)) {
-      focusManagerRef.value = AppFocusManager(
-        onFocus: () {
+      late final PollingController<TData> controller;
+      controller = PollingController<TData>(
+        interval: opts.pollingInterval!,
+        action: () {
           final key = lastKeyRef.value;
-          if (opts.ready && key != null && lastParamsMapRef.value[key] != null) {
-            if (opts.refreshOnFocus) {
-              refresh();
-            }
-            if (opts.pollingInterval != null && !opts.pollingWhenHidden) {
-              resumePolling();
-            }
+          final params = key != null ? lastParamsMapRef.value[key] : null;
+          if (params != null && key != null) {
+            return fetchData(key, params);
           }
+          throw StateError('No params for polling');
         },
-        onBlur: () {
-          if (opts.pollingInterval != null && !opts.pollingWhenHidden) {
-            pollingControllerRef.value?.pause();
+        onSuccess: (_) {
+          // Success is already handled in fetchData
+        },
+        onError: (error) {
+          if (opts.pausePollingOnError) {
+            controller.pause();
             pollingActiveRef.value = false;
+
+            pollingRetryTimerRef.value?.cancel();
+            final retryInterval = opts.pollingRetryInterval;
+            if (retryInterval != null) {
+              pollingRetryTimerRef.value = Timer(retryInterval, () {
+                if (!isMountedRef.value) return;
+                if (pollingControllerRef.value != controller) return;
+
+                final lastKey = lastKeyRef.value;
+                final hasParams =
+                    lastKey != null && lastParamsMapRef.value[lastKey] != null;
+                final hasEverRun = stateNotifier.value.requestCount > 0;
+                final shouldAutoStart = !opts.manual;
+                final canPoll =
+                    opts.ready && hasParams && (shouldAutoStart || hasEverRun);
+
+                if (canPoll) {
+                  if (!controller.isRunning) {
+                    controller.start();
+                  } else {
+                    controller.resume();
+                  }
+                  pollingActiveRef.value = true;
+                }
+              });
+            }
           }
         },
       );
-      focusManagerRef.value!.start();
-    }
 
-    return () {
-      focusManagerRef.value?.dispose();
-    };
-  }, [opts.refreshOnFocus, opts.pollingInterval, opts.pollingWhenHidden, opts.ready]);
+      pollingControllerRef.value = controller;
+
+      return () {
+        pollingRetryTimerRef.value?.cancel();
+        pollingRetryTimerRef.value = null;
+        controller.dispose();
+        if (pollingControllerRef.value == controller) {
+          pollingControllerRef.value = null;
+        }
+        pollingActiveRef.value = false;
+      };
+    },
+    [
+      opts.pollingInterval,
+      opts.pausePollingOnError,
+      opts.pollingRetryInterval,
+      opts.manual,
+      opts.ready,
+    ],
+  );
+
+  // 根据 ready/manual/是否有过请求来启动或暂停轮询
+  useEffect(
+    () {
+      final controller = pollingControllerRef.value;
+      if (controller == null) return null;
+
+      pollingRetryTimerRef.value?.cancel();
+      pollingRetryTimerRef.value = null;
+
+      final lastKey = lastKeyRef.value;
+      final hasParams =
+          lastKey != null && lastParamsMapRef.value[lastKey] != null;
+      final hasEverRun = stateNotifier.value.requestCount > 0;
+      final shouldAutoStart = !opts.manual;
+      final canPoll =
+          opts.pollingInterval != null &&
+          opts.ready &&
+          hasParams &&
+          (shouldAutoStart || hasEverRun);
+
+      if (canPoll) {
+        if (!controller.isRunning) {
+          controller.start();
+        } else {
+          controller.resume();
+        }
+        pollingActiveRef.value = true;
+      } else {
+        controller.pause();
+        pollingActiveRef.value = false;
+      }
+
+      return null;
+    },
+    [
+      opts.pollingInterval,
+      opts.manual,
+      opts.ready,
+      stateNotifier.value.requestCount,
+    ],
+  );
+
+  // 设置聚焦刷新
+  useEffect(
+    () {
+      if (opts.refreshOnFocus ||
+          (opts.pollingInterval != null && !opts.pollingWhenHidden)) {
+        focusManagerRef.value = AppFocusManager(
+          onFocus: () {
+            final key = lastKeyRef.value;
+            if (opts.ready &&
+                key != null &&
+                lastParamsMapRef.value[key] != null) {
+              if (opts.refreshOnFocus) {
+                refresh();
+              }
+              if (opts.pollingInterval != null && !opts.pollingWhenHidden) {
+                resumePolling();
+              }
+            }
+          },
+          onBlur: () {
+            if (opts.pollingInterval != null && !opts.pollingWhenHidden) {
+              pollingControllerRef.value?.pause();
+              pollingActiveRef.value = false;
+            }
+          },
+        );
+        focusManagerRef.value!.start();
+      }
+
+      return () {
+        focusManagerRef.value?.dispose();
+      };
+    },
+    [
+      opts.refreshOnFocus,
+      opts.pollingInterval,
+      opts.pollingWhenHidden,
+      opts.ready,
+    ],
+  );
 
   // 重连刷新（外部提供 reconnectStream）
   useEffect(() {
@@ -617,7 +697,8 @@ class RequestSupersededException implements Exception {
   const RequestSupersededException();
 
   @override
-  String toString() => 'RequestSupersededException: Request was superseded by a newer request';
+  String toString() =>
+      'RequestSupersededException: Request was superseded by a newer request';
 }
 
 /// 当请求被取消时抛出

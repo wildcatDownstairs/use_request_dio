@@ -35,13 +35,13 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   # When using from pub.dev, you can depend on:
-  # use_request: ^0.0.2
+  # use_request: ^0.0.4
   # For local development, keep the path dependency:
   use_request:
     path: ../
   dio: ^5.9.0
-  flutter_hooks: ^0.20.5
-  flutter_riverpod: ^2.6.1
+  flutter_hooks: ^0.21.3+1
+  flutter_riverpod: ^3.0.3
   visibility_detector: ^0.4.0+2
 
 dev_dependencies:

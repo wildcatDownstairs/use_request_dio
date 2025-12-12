@@ -6,11 +6,7 @@ class CacheCoordinator<T> {
   final Duration? cacheTime;
   final Duration? staleTime;
 
-  CacheCoordinator({
-    required this.cacheKey,
-    this.cacheTime,
-    this.staleTime,
-  });
+  CacheCoordinator({required this.cacheKey, this.cacheTime, this.staleTime});
 
   /// 返回缓存（如果存在且未过期）
   T? getFresh() {

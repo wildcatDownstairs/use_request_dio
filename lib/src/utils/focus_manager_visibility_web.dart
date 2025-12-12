@@ -6,7 +6,9 @@ typedef VisibilityChangeCallback = void Function(bool visible);
 typedef VisibilityChangeDisposer = void Function();
 
 /// Web implementation using document.visibilitychange.
-VisibilityChangeDisposer registerVisibilityChange(VisibilityChangeCallback callback) {
+VisibilityChangeDisposer registerVisibilityChange(
+  VisibilityChangeCallback callback,
+) {
   void handler(html.Event _) {
     callback(html.document.visibilityState == 'visible');
   }

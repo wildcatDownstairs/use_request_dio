@@ -201,7 +201,10 @@ class Debouncer<T> {
   }
 
   /// 执行 action 并完成 completer
-  Future<void> _execute(Future<T> Function() action, Completer<T> completer) async {
+  Future<void> _execute(
+    Future<T> Function() action,
+    Completer<T> completer,
+  ) async {
     try {
       final result = await action();
       if (!completer.isCompleted) {
@@ -273,7 +276,8 @@ class Debouncer<T> {
 /// ```
 class DebounceCancelledException implements Exception {
   @override
-  String toString() => 'DebounceCancelledException: Call was cancelled by a newer call';
+  String toString() =>
+      'DebounceCancelledException: Call was cancelled by a newer call';
 }
 
 // ============================================================================

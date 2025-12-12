@@ -27,10 +27,7 @@ class RequestCacheEntry<T> {
   /// 缓存创建/更新的时间戳
   final DateTime timestamp;
 
-  RequestCacheEntry({
-    required this.data,
-    required this.timestamp,
-  });
+  RequestCacheEntry({required this.data, required this.timestamp});
 }
 
 // ============================================================================
@@ -58,10 +55,7 @@ class PendingRequestEntry<T> {
   /// 请求开始的时间戳
   final DateTime timestamp;
 
-  PendingRequestEntry({
-    required this.future,
-    required this.timestamp,
-  });
+  PendingRequestEntry({required this.future, required this.timestamp});
 }
 
 // ============================================================================
@@ -168,10 +162,7 @@ class RequestCache {
   /// RequestCache.set<User>('user-1', user);
   /// ```
   static void set<T>(String key, T data) {
-    _store[key] = RequestCacheEntry<T>(
-      data: data,
-      timestamp: DateTime.now(),
-    );
+    _store[key] = RequestCacheEntry<T>(data: data, timestamp: DateTime.now());
     // 请求完成后清除 pending（请求已完成，不再需要去重）
     _pending.remove(key);
   }

@@ -3,9 +3,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import 'types.dart';
-import 'use_request.dart' show RequestSupersededException, RequestCancelledException;
+import 'use_request.dart'
+    show RequestSupersededException, RequestCancelledException;
 import 'utils/debounce.dart';
 import 'utils/throttle.dart';
 import 'utils/retry.dart';
@@ -17,7 +19,8 @@ import 'utils/cache_policy.dart';
 import 'utils/cancel_token.dart';
 
 /// 请求状态管理的 StateNotifier 实现
-class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<TData, TParams>> {
+class UseRequestNotifier<TData, TParams>
+    extends StateNotifier<UseRequestState<TData, TParams>> {
   final Service<TData, TParams> service;
   final UseRequestOptions<TData, TParams> options;
 
@@ -36,14 +39,15 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
   AppFocusManager? _focusManager;
   StreamSubscription<bool>? _reconnectSub;
 
-  String _getKey(TParams params) => options.fetchKey?.call(params) ?? '_default';
+  String _getKey(TParams params) =>
+      options.fetchKey?.call(params) ?? '_default';
 
-  UseRequestNotifier({
-    required this.service,
-    required this.options,
-  }) : super(UseRequestState<TData, TParams>(params: options.defaultParams)) {
+  UseRequestNotifier({required this.service, required this.options})
+    : super(UseRequestState<TData, TParams>(params: options.defaultParams)) {
     _ready = options.ready;
-    _lastRefreshDeps = options.refreshDeps != null ? List<Object?>.from(options.refreshDeps!) : null;
+    _lastRefreshDeps = options.refreshDeps != null
+        ? List<Object?>.from(options.refreshDeps!)
+        : null;
     if (options.debounceInterval != null && options.throttleInterval != null) {
       throw ArgumentError('debounceInterval 与 throttleInterval 不能同时设置，请二选一');
     }
@@ -103,7 +107,8 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
             if (options.pollingRetryInterval != null) {
               _pollingRetryTimer = Timer(options.pollingRetryInterval!, () {
                 if (!_ready || _pollingController == null) return;
-                final hasParams = _lastKey != null && _lastParamsByKey[_lastKey!] != null;
+                final hasParams =
+                    _lastKey != null && _lastParamsByKey[_lastKey!] != null;
                 final hasEverRun = state.requestCount > 0;
                 final shouldAutoStart = !options.manual;
                 final canPoll = hasParams && (shouldAutoStart || hasEverRun);
@@ -120,16 +125,22 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
         },
       );
 
-      if (!options.manual && _lastKey != null && _lastParamsByKey[_lastKey!] != null && _ready) {
+      if (!options.manual &&
+          _lastKey != null &&
+          _lastParamsByKey[_lastKey!] != null &&
+          _ready) {
         _pollingController!.start();
       }
     }
 
     // 初始化聚焦管理
-    if (options.refreshOnFocus || (options.pollingInterval != null && !options.pollingWhenHidden)) {
+    if (options.refreshOnFocus ||
+        (options.pollingInterval != null && !options.pollingWhenHidden)) {
       _focusManager = AppFocusManager(
         onFocus: () {
-          if (_lastKey != null && _lastParamsByKey[_lastKey!] != null && _ready) {
+          if (_lastKey != null &&
+              _lastParamsByKey[_lastKey!] != null &&
+              _ready) {
             if (options.refreshOnFocus) {
               refresh();
             }
@@ -156,7 +167,10 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
     if (options.refreshOnReconnect && options.reconnectStream != null) {
       _reconnectSub?.cancel();
       _reconnectSub = options.reconnectStream!.listen((online) {
-        if (online && _ready && _lastKey != null && _lastParamsByKey[_lastKey!] != null) {
+        if (online &&
+            _ready &&
+            _lastKey != null &&
+            _lastParamsByKey[_lastKey!] != null) {
           refresh();
         }
       });
@@ -183,7 +197,11 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
     }
   }
 
-  Future<TData> _fetchData(String key, TParams params, {bool isLoadMore = false}) async {
+  Future<TData> _fetchData(
+    String key,
+    TParams params, {
+    bool isLoadMore = false,
+  }) async {
     final currentRequestCount = (_requestCounts[key] ?? 0) + 1;
     _requestCounts[key] = currentRequestCount;
 
@@ -234,12 +252,20 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
     // 进入 loading 状态
     if (isLoadMore) {
       if (mounted) {
-        state = state.copyWith(loadingMore: true, clearError: true, requestCount: currentRequestCount);
+        state = state.copyWith(
+          loadingMore: true,
+          clearError: true,
+          requestCount: currentRequestCount,
+        );
       }
     } else {
       _setLoading(true);
       if (mounted) {
-        state = state.copyWith(params: params, clearError: true, requestCount: currentRequestCount);
+        state = state.copyWith(
+          params: params,
+          clearError: true,
+          requestCount: currentRequestCount,
+        );
       }
     }
 
@@ -273,7 +299,9 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
       // 保证只处理最新一次请求且仅更新 active key
       final latestCount = _requestCounts[key] ?? currentRequestCount;
       final isStaleKey = _lastKey != key;
-      if (currentRequestCount != latestCount || cancelToken.isCancelled || isStaleKey) {
+      if (currentRequestCount != latestCount ||
+          cancelToken.isCancelled ||
+          isStaleKey) {
         return result;
       }
 
@@ -319,7 +347,8 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
       final latestCount = _requestCounts[key] ?? currentRequestCount;
       final isStaleKey = _lastKey != key;
       final isStale = currentRequestCount != latestCount || isStaleKey;
-      final isCancellation = cancelToken.isCancelled ||
+      final isCancellation =
+          cancelToken.isCancelled ||
           e is RequestSupersededException ||
           e is RequestCancelledException ||
           e is RetryCancelledException ||
@@ -332,11 +361,7 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
       // 更新错误态
       _loadingDelayController?.endLoading();
       if (mounted) {
-        state = state.copyWith(
-          loading: false,
-          loadingMore: false,
-          error: e,
-        );
+        state = state.copyWith(loading: false, loadingMore: false, error: e);
       }
 
       // 失败回调
@@ -362,11 +387,15 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
     final key = _getKey(params);
 
     if (_debouncer != null) {
-      return _debouncer!.call(() => _fetchData(key, params, isLoadMore: isLoadMore));
+      return _debouncer!.call(
+        () => _fetchData(key, params, isLoadMore: isLoadMore),
+      );
     }
 
     if (_throttler != null) {
-      return _throttler!.call(() => _fetchData(key, params, isLoadMore: isLoadMore));
+      return _throttler!.call(
+        () => _fetchData(key, params, isLoadMore: isLoadMore),
+      );
     }
 
     return _fetchData(key, params, isLoadMore: isLoadMore);
@@ -407,7 +436,10 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
       throw StateError('UseRequestOptions.loadMoreParams 未提供，无法加载更多');
     }
 
-    final nextParams = options.loadMoreParams!(lastParams as TParams, state.data);
+    final nextParams = options.loadMoreParams!(
+      lastParams as TParams,
+      state.data,
+    );
     return runAsync(nextParams, isLoadMore: true);
   }
 
@@ -448,7 +480,8 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
   }
 
   /// 获取上一次请求参数
-  TParams? get lastParams => _lastKey != null ? _lastParamsByKey[_lastKey!] : null;
+  TParams? get lastParams =>
+      _lastKey != null ? _lastParamsByKey[_lastKey!] : null;
 
   /// 切换 ready 状态
   void setReady(bool ready) {
@@ -459,7 +492,9 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
 
     if (_ready) {
       if (!options.manual) {
-        final params = _lastKey != null ? _lastParamsByKey[_lastKey!] : options.defaultParams;
+        final params = _lastKey != null
+            ? _lastParamsByKey[_lastKey!]
+            : options.defaultParams;
         if (params != null) {
           run(params as TParams);
         }
@@ -502,7 +537,9 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
     }
 
     if (!options.manual && _ready) {
-      final params = _lastKey != null ? _lastParamsByKey[_lastKey!] : options.defaultParams;
+      final params = _lastKey != null
+          ? _lastParamsByKey[_lastKey!]
+          : options.defaultParams;
       if (params != null) {
         run(params as TParams);
       }
@@ -532,12 +569,18 @@ class UseRequestNotifier<TData, TParams> extends StateNotifier<UseRequestState<T
 ///   service: (params) => fetchMyData(params),
 /// );
 /// ```
-StateNotifierProvider<UseRequestNotifier<TData, TParams>, UseRequestState<TData, TParams>>
-    createUseRequestProvider<TData, TParams>({
+StateNotifierProvider<
+  UseRequestNotifier<TData, TParams>,
+  UseRequestState<TData, TParams>
+>
+createUseRequestProvider<TData, TParams>({
   required Service<TData, TParams> service,
   UseRequestOptions<TData, TParams>? options,
 }) {
-  return StateNotifierProvider<UseRequestNotifier<TData, TParams>, UseRequestState<TData, TParams>>(
+  return StateNotifierProvider<
+    UseRequestNotifier<TData, TParams>,
+    UseRequestState<TData, TParams>
+  >(
     (ref) => UseRequestNotifier<TData, TParams>(
       service: service,
       options: options ?? const UseRequestOptions(),
@@ -575,9 +618,11 @@ mixin UseRequestMixin<TData, TParams> {
   Future<TData> loadMoreAsync() => _notifier.loadMoreAsync();
   void loadMore() => _notifier.loadMore();
   void setReady(bool ready) => _notifier.setReady(ready);
-  void refreshDeps(List<Object?> deps, {VoidCallback? action}) => _notifier.refreshDeps(deps, action: action);
+  void refreshDeps(List<Object?> deps, {VoidCallback? action}) =>
+      _notifier.refreshDeps(deps, action: action);
   void setPollingVisible(bool visible) => _notifier.setPollingVisible(visible);
-  void mutate(TData? Function(TData? oldData)? mutator) => _notifier.mutate(mutator);
+  void mutate(TData? Function(TData? oldData)? mutator) =>
+      _notifier.mutate(mutator);
   void cancel() => _notifier.cancel();
 
   void disposeUseRequest() {
@@ -587,7 +632,8 @@ mixin UseRequestMixin<TData, TParams> {
 }
 
 /// 便捷状态判断扩展
-extension UseRequestResultExtension<TData, TParams> on UseRequestState<TData, TParams> {
+extension UseRequestResultExtension<TData, TParams>
+    on UseRequestState<TData, TParams> {
   bool get isLoading => loading;
   bool get hasData => data != null;
   bool get hasError => error != null;
@@ -604,7 +650,8 @@ class UseRequestBuilder<TData, TParams> extends ConsumerStatefulWidget {
     BuildContext context,
     UseRequestState<TData, TParams> state,
     UseRequestNotifier<TData, TParams> notifier,
-  ) builder;
+  )
+  builder;
 
   const UseRequestBuilder({
     super.key,
