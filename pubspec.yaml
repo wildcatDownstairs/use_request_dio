@@ -4,6 +4,12 @@ version: 0.0.1
 homepage: https://github.com/wildcatDownstairs/use_request_dio
 repository: https://github.com/wildcatDownstairs/use_request_dio
 issue_tracker: https://github.com/wildcatDownstairs/use_request_dio/issues
+topics:
+  - hooks
+  - dio
+  - riverpod
+  - async
+  - request
 
 environment:
   sdk: ^3.10.1

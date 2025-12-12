@@ -1,5 +1,11 @@
 简体中文 | [English](README_EN.md)
 
+[![pub package](https://img.shields.io/pub/v/use_request.svg)](https://pub.dev/packages/use_request)
+[![likes](https://img.shields.io/pub/likes/use_request)](https://pub.dev/packages/use_request/score)
+[![pub points](https://img.shields.io/pub/points/use_request)](https://pub.dev/packages/use_request/score)
+[![popularity](https://img.shields.io/pub/popularity/use_request)](https://pub.dev/packages/use_request/score)
+[![Flutter CI](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml/badge.svg)](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml)
+
 # demo
 - 进入示例目录并安装依赖： `cd example && flutter pub get`
 - 按平台启动：
