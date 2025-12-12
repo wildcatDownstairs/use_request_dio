@@ -68,6 +68,7 @@ dependencies:
   dio: ^5.9.0
   flutter_hooks: ^0.20.5
   flutter_riverpod: ^2.6.1
+  # Optional: only if you use HookConsumerWidget / hooks_riverpod in UI
   hooks_riverpod: ^2.6.1
 ```
 
@@ -347,4 +348,3 @@ Guideline:
 - Types: `lib/src/types.dart`
 - Dio adapter: `lib/src/utils/dio_adapter.dart`
 - Utils: `lib/src/utils/`
-

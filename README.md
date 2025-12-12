@@ -55,6 +55,7 @@ dependencies:
   dio: ^5.9.0
   flutter_hooks: ^0.20.5
   flutter_riverpod: ^2.6.1
+  # 可选：若你在 UI 里使用 HookConsumerWidget / hooks_riverpod
   hooks_riverpod: ^2.6.1
 ```
 
