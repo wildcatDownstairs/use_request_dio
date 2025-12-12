@@ -95,11 +95,8 @@ typedef OnError<TParams> = void Function(dynamic error, TParams params);
 ///   print('请求耗时: ${duration.inMilliseconds}ms');
 /// }
 /// ```
-typedef OnFinally<TData, TParams> = void Function(
-  TParams params,
-  TData? data,
-  dynamic error,
-);
+typedef OnFinally<TData, TParams> =
+    void Function(TParams params, TData? data, dynamic error);
 
 /// 重试尝试回调
 ///
@@ -1002,8 +999,8 @@ class UseRequestResult<TData, TParams> {
     required this.cancel,
     void Function()? pausePolling,
     void Function()? resumePolling,
-  })  : pausePolling = pausePolling ?? _noop,
-        resumePolling = resumePolling ?? _noop;
+  }) : pausePolling = pausePolling ?? _noop,
+       resumePolling = resumePolling ?? _noop;
 }
 
 /// 空操作函数，用于可选回调的默认值
@@ -1115,7 +1112,15 @@ class UseRequestState<TData, TParams> {
 
   @override
   int get hashCode {
-    return Object.hash(loading, loadingMore, data, error, params, requestCount, hasMore);
+    return Object.hash(
+      loading,
+      loadingMore,
+      data,
+      error,
+      params,
+      requestCount,
+      hasMore,
+    );
   }
 
   @override

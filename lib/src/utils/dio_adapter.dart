@@ -1,15 +1,7 @@
 import 'package:dio/dio.dart';
 
 /// HTTP 请求方法枚举
-enum HttpMethod {
-  get,
-  post,
-  put,
-  delete,
-  patch,
-  head,
-  options,
-}
+enum HttpMethod { get, post, put, delete, patch, head, options }
 
 /// HTTP 请求配置
 ///
@@ -405,13 +397,15 @@ class DioHttpAdapter {
     dynamic Function(dynamic data)? responseTransformer,
     dynamic Function(DioException error)? errorTransformer,
   }) {
-    final dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: connectTimeout,
-      receiveTimeout: receiveTimeout,
-      sendTimeout: sendTimeout,
-      headers: headers,
-    ));
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: connectTimeout,
+        receiveTimeout: receiveTimeout,
+        sendTimeout: sendTimeout,
+        headers: headers,
+      ),
+    );
 
     return DioHttpAdapter(
       dio: dio,
@@ -468,12 +462,13 @@ class DioHttpAdapter {
         sendTimeout: config.sendTimeout ?? base.sendTimeout,
         receiveTimeout: config.receiveTimeout ?? base.receiveTimeout,
         headers: mergedHeaders,
-        responseType: config.responseType ?? config.extra?.responseType ?? base.responseType,
-        contentType: config.contentType ?? config.extra?.contentType ?? base.contentType,
-        extra: {
-          ...base.extra,
-          ...?config.extra?.extra,
-        },
+        responseType:
+            config.responseType ??
+            config.extra?.responseType ??
+            base.responseType,
+        contentType:
+            config.contentType ?? config.extra?.contentType ?? base.contentType,
+        extra: {...base.extra, ...?config.extra?.extra},
         cancelToken: cancelToken,
         onSendProgress: config.onSendProgress,
         onReceiveProgress: config.onReceiveProgress,
@@ -643,10 +638,7 @@ class DioHttpAdapter {
     CancelToken? cancelToken,
     ProgressCallback? onProgress,
   }) {
-    final formData = FormData.fromMap({
-      fieldName: file,
-      ...?extraFields,
-    });
+    final formData = FormData.fromMap({fieldName: file, ...?extraFields});
 
     return request<T>(
       HttpRequestConfig.post(

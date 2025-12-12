@@ -8,10 +8,7 @@ class LoadingDelayController {
   bool _shouldShowLoading = false;
   final void Function(bool loading) onLoadingChange;
 
-  LoadingDelayController({
-    required this.delay,
-    required this.onLoadingChange,
-  });
+  LoadingDelayController({required this.delay, required this.onLoadingChange});
 
   /// 开始请求（在延迟后显示 loading）
   void startLoading() {

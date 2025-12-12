@@ -1,6 +1,6 @@
 name: use_request
 description: "A Flutter useRequest-style async request management library based on dio, flutter_hooks, and Riverpod."
-version: 0.0.2
+version: 0.0.4
 homepage: https://github.com/wildcatDownstairs/use_request_dio
 repository: https://github.com/wildcatDownstairs/use_request_dio
 issue_tracker: https://github.com/wildcatDownstairs/use_request_dio/issues
@@ -19,8 +19,8 @@ dependencies:
   flutter:
     sdk: flutter
   dio: ^5.9.0
-  flutter_hooks: ^0.20.5
-  flutter_riverpod: ^2.6.1
+  flutter_hooks: ^0.21.3+1
+  flutter_riverpod: ^3.0.3
 
 dev_dependencies:
   flutter_test:

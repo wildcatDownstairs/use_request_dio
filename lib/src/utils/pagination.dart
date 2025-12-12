@@ -1,4 +1,5 @@
-typedef PageParamBuilder<TParams, TData> = TParams Function(int page, int pageSize, TParams? origin);
+typedef PageParamBuilder<TParams, TData> =
+    TParams Function(int page, int pageSize, TParams? origin);
 typedef PageHasMore<TData> = bool Function(TData? data);
 typedef PageDataMerger<TData> = TData Function(TData? previous, TData next);
 
@@ -25,7 +26,8 @@ class PaginationHelpers {
   }
 
   /// 根据 page/pageSize 生成 loadMoreParams
-  static TParams Function(TParams lastParams, TData? data) pageParams<TParams, TData>({
+  static TParams Function(TParams lastParams, TData? data)
+  pageParams<TParams, TData>({
     required int pageSize,
     required PageParamBuilder<TParams, TData> builder,
     int startPage = 1,

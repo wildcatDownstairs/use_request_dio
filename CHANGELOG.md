@@ -1,3 +1,8 @@
+## 0.0.4
+
+- Reformat source to satisfy `dart format` and static analysis.
+- Upgrade dependencies to latest supported versions (`flutter_hooks`, `flutter_riverpod`), keeping Riverpod v3 compatibility via legacy API.
+
 ## 0.0.2
 
 - Implement active-key single-state semantics for `fetchKey` (stale key results no longer update state).

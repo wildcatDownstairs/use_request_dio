@@ -146,14 +146,15 @@ class Throttler<T> {
 
     // 计算距离上次执行的时间
     final elapsedSinceLast = _lastExecutionTime == null
-        ? duration  // 首次调用，视为已过节流间隔
+        ? duration // 首次调用，视为已过节流间隔
         : now.difference(_lastExecutionTime!);
 
     // 计算距离首次调用的时间
     final elapsedSinceFirst = now.difference(_firstCallTime!);
 
     // 判断是否可以执行 leading
-    final canRunLeading = leading && (_lastExecutionTime == null || elapsedSinceLast >= duration);
+    final canRunLeading =
+        leading && (_lastExecutionTime == null || elapsedSinceLast >= duration);
 
     // maxWait 强制执行：超过最大等待时间，立即执行
     if (maxWait != null && elapsedSinceFirst >= maxWait!) {

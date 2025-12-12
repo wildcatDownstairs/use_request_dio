@@ -254,7 +254,7 @@ class PollingController<T> {
 
     // 检查是否应该执行
     if (shouldPoll != null && !shouldPoll!()) {
-      return;  // 条件不满足，跳过本次但不停止轮询
+      return; // 条件不满足，跳过本次但不停止轮询
     }
 
     try {

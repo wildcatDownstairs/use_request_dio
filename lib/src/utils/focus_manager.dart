@@ -13,10 +13,7 @@ class AppFocusManager with WidgetsBindingObserver {
   bool _wasInBackground = false;
   VisibilityChangeDisposer? _visibilityDisposer;
 
-  AppFocusManager({
-    required this.onFocus,
-    this.onBlur,
-  });
+  AppFocusManager({required this.onFocus, this.onBlur});
 
   /// 开始监听应用生命周期变化
   void start() {
@@ -83,8 +80,5 @@ AppFocusManager createFocusManager({
   required VoidCallback onFocus,
   VoidCallback? onBlur,
 }) {
-  return AppFocusManager(
-    onFocus: onFocus,
-    onBlur: onBlur,
-  );
+  return AppFocusManager(onFocus: onFocus, onBlur: onBlur);
 }
