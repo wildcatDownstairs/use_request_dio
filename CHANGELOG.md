@@ -1,3 +1,8 @@
+## 0.0.5
+
+- Optimize auto-request logic: allow auto-trigger when `defaultParams` is null (provided `manual` is false).
+- Docs: add minimalist usage example (Zero Configuration).
+
 ## 0.0.4
 
 - Reformat source to satisfy `dart format` and static analysis.
