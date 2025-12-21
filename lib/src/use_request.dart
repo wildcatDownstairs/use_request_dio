@@ -665,7 +665,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
   // 非手动模式下，挂载后自动请求一次
   useEffect(() {
-    if (!opts.manual && opts.defaultParams != null && opts.ready) {
+    if (!opts.manual && opts.ready) {
       run(opts.defaultParams as TParams);
     }
     return null;

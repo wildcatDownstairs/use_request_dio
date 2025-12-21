@@ -98,33 +98,29 @@ class UserPage extends HookWidget {
   const UserPage({super.key});
   @override
   Widget build(BuildContext context) {
-    final result = useRequest<User, UserParams>(
+    // 自动触发请求（零配置）
+    // 默认传入 null 作为参数，Service 接收后忽略即可
+    final request = useRequest<List<User>, dynamic>(
+      ([_]) => fetchUserList(), 
+    );
+
+    // 自动触发请求（带默认参数）
+    final userRequest = useRequest<User, int>(
       fetchUser,
       options: const UseRequestOptions(
-        manual: false,
-        defaultParams: UserParams(1),
-        loadingDelay: Duration(milliseconds: 200),
-        retryCount: 2,
-        retryInterval: Duration(seconds: 1),
-        refreshOnFocus: true,
+        defaultParams: 1, // 组件挂载后自动请求 fetchUser(1)
       ),
     );
 
-    if (result.loading) return const Center(child: CircularProgressIndicator());
-    if (result.error != null) return Text('错误: ${result.error}');
-    return Column(
-      children: [
-        Text(result.data?.name ?? ''),
-        ElevatedButton(onPressed: () => result.run(UserParams(2)), child: const Text('再拉一次')),
-      ],
-    );
+    if (userRequest.loading) return const CircularProgressIndicator();
+    if (userRequest.error != null) return Text('Error: ${userRequest.error}');
+    
+    return Text('User: ${userRequest.data?.name}');
   }
 }
 ```
 
-函数定义参考：`lib/src/use_request.dart:1`。
-
-### 组件版（`UseRequestBuilder`）
+### Riverpod 版（`UseRequestBuilder`）
 
 无需使用 Hook，任意组件中以 Builder 方式获取状态与操作。
 
