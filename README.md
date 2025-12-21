@@ -87,6 +87,28 @@ void main() {
 
 适合 `HookWidget` 或 `HookConsumerWidget` 中的本地状态管理。
 
+#### 极简用法
+
+```dart
+// Service 函数：配合 ([_]) 忽略参数
+Future<List<User>> fetchUsers([_]) async => ...;
+
+@override
+Widget build(BuildContext context) {
+  // 自动触发请求（零配置）
+  // 默认传入 null 作为参数，Service 接收后忽略即可
+  final request = useRequest<List<User>, dynamic>(
+    ([_]) => fetchUsers(), 
+    // 无需 options，自动触发
+  );
+
+  if (request.loading) return const CircularProgressIndicator();
+  return ListView(children: ...);
+}
+```
+
+#### 完整示例
+
 ```dart
 class UserParams { final int id; UserParams(this.id); }
 Future<User> fetchUser(UserParams p) async {
@@ -98,29 +120,33 @@ class UserPage extends HookWidget {
   const UserPage({super.key});
   @override
   Widget build(BuildContext context) {
-    // 自动触发请求（零配置）
-    // 默认传入 null 作为参数，Service 接收后忽略即可
-    final request = useRequest<List<User>, dynamic>(
-      ([_]) => fetchUserList(), 
-    );
-
-    // 自动触发请求（带默认参数）
-    final userRequest = useRequest<User, int>(
+    final result = useRequest<User, UserParams>(
       fetchUser,
       options: const UseRequestOptions(
-        defaultParams: 1, // 组件挂载后自动请求 fetchUser(1)
+        manual: false,
+        defaultParams: UserParams(1),
+        loadingDelay: Duration(milliseconds: 200),
+        retryCount: 2,
+        retryInterval: Duration(seconds: 1),
+        refreshOnFocus: true,
       ),
     );
 
-    if (userRequest.loading) return const CircularProgressIndicator();
-    if (userRequest.error != null) return Text('Error: ${userRequest.error}');
-    
-    return Text('User: ${userRequest.data?.name}');
+    if (result.loading) return const Center(child: CircularProgressIndicator());
+    if (result.error != null) return Text('错误: ${result.error}');
+    return Column(
+      children: [
+        Text(result.data?.name ?? ''),
+        ElevatedButton(onPressed: () => result.run(UserParams(2)), child: const Text('再拉一次')),
+      ],
+    );
   }
 }
 ```
 
-### Riverpod 版（`UseRequestBuilder`）
+函数定义参考：`lib/src/use_request.dart:1`。
+
+### 组件版（`UseRequestBuilder`）
 
 无需使用 Hook，任意组件中以 Builder 方式获取状态与操作。
 
