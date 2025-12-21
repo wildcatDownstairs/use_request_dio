@@ -232,12 +232,15 @@ class UseRequestOptions<TData, TParams> {
 
   /// 是否手动触发请求
   ///
-  /// - `false`（默认）：组件加载时自动执行请求（需提供 [defaultParams]）
+  /// - `false`（默认）：组件加载时自动执行请求（若未提供 [defaultParams]，则传递 `null`）
   /// - `true`：需要手动调用 `run()` 或 `runAsync()` 触发请求
   ///
   /// ```dart
   /// // 自动请求
   /// useRequest(fetchUser, options: UseRequestOptions(defaultParams: 1));
+  ///
+  /// // 自动请求（无参/默认参数为 null）
+  /// useRequest<User, dynamic>(([params]) => fetchUser());
   ///
   /// // 手动请求
   /// final result = useRequest(fetchUser, options: UseRequestOptions(manual: true));
@@ -270,7 +273,7 @@ class UseRequestOptions<TData, TParams> {
 
   /// 初始请求参数
   ///
-  /// 用于自动请求时的默认参数。当 `manual: false` 时必须提供。
+  /// 用于自动请求时的默认参数。当 `manual: false` 时，若未提供此参数，默认传递 `null`。
   ///
   /// ```dart
   /// useRequest(fetchUser, options: UseRequestOptions(defaultParams: 1));
