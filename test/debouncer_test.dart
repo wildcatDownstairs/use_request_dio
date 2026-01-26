@@ -22,4 +22,3 @@ void main() {
     expect(await f2, 'b');
   });
 }
-

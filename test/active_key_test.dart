@@ -11,10 +11,7 @@ void main() {
 
     final notifier = UseRequestNotifier<String, int>(
       service: service,
-      options: UseRequestOptions(
-        manual: true,
-        fetchKey: (p) => 'k$p',
-      ),
+      options: UseRequestOptions(manual: true, fetchKey: (p) => 'k$p'),
     );
 
     final f1 = notifier.runAsync(1);
@@ -28,4 +25,3 @@ void main() {
     expect(notifier.state.data, 'v2');
   });
 }
-

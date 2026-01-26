@@ -11,7 +11,9 @@ class PollingDemo extends HookWidget {
   Future<Map<String, dynamic>> _fetchRandomUser(int _) async {
     final dio = Dio();
     final randomId = DateTime.now().second % 10 + 1;
-    final res = await dio.get('https://jsonplaceholder.typicode.com/users/$randomId');
+    final res = await dio.get(
+      'https://jsonplaceholder.typicode.com/users/$randomId',
+    );
     return {
       ...res.data as Map<String, dynamic>,
       'fetchTime': DateTime.now().toIso8601String(),
@@ -34,10 +36,14 @@ class PollingDemo extends HookWidget {
         manual: false,
         ready: ready.value,
         defaultParams: 1,
-        pollingInterval: pollingEnabled.value ? const Duration(seconds: 3) : null,
+        pollingInterval: pollingEnabled.value
+            ? const Duration(seconds: 3)
+            : null,
         pollingWhenHidden: pollingWhenHidden.value,
         pausePollingOnError: pauseOnError.value,
-        pollingRetryInterval: autoRetry.value ? const Duration(seconds: 5) : null,
+        pollingRetryInterval: autoRetry.value
+            ? const Duration(seconds: 5)
+            : null,
         refreshOnFocus: true,
         onSuccess: (data, params) {
           updateCount.value++;
@@ -127,9 +133,15 @@ class PollingDemo extends HookWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: request.isPolling ? Colors.green[50] : Colors.grey[100],
+                    color: request.isPolling
+                        ? Colors.green[50]
+                        : Colors.grey[100],
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: request.isPolling ? Colors.green[200]! : Colors.grey[300]!),
+                    border: Border.all(
+                      color: request.isPolling
+                          ? Colors.green[200]!
+                          : Colors.grey[300]!,
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -137,7 +149,9 @@ class PollingDemo extends HookWidget {
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          color: request.isPolling ? Colors.green[400] : Colors.grey[500],
+                          color: request.isPolling
+                              ? Colors.green[400]
+                              : Colors.grey[500],
                           shape: BoxShape.circle,
                         ),
                         child: request.isPolling
@@ -159,10 +173,12 @@ class PollingDemo extends HookWidget {
                           request.isPolling
                               ? '轮询中 - 已更新 ${updateCount.value} 次'
                               : ready.value
-                                  ? '未轮询（可能被暂停/不可见）'
-                                  : 'ready=false，已暂停',
+                              ? '未轮询（可能被暂停/不可见）'
+                              : 'ready=false，已暂停',
                           style: TextStyle(
-                            color: request.isPolling ? Colors.green[900] : Colors.grey[700],
+                            color: request.isPolling
+                                ? Colors.green[900]
+                                : Colors.grey[700],
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -186,7 +202,9 @@ class PollingDemo extends HookWidget {
                             CircleAvatar(
                               backgroundColor: Colors.blue[100],
                               child: Text(
-                                request.data!['name'].toString()[0].toUpperCase(),
+                                request.data!['name']
+                                    .toString()[0]
+                                    .toUpperCase(),
                                 style: TextStyle(
                                   color: Colors.blue[700],
                                   fontWeight: FontWeight.bold,
@@ -231,7 +249,11 @@ class PollingDemo extends HookWidget {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                            Icon(
+                              Icons.access_time,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '更新时间: ${request.data!['fetchTime']?.toString().substring(11, 19) ?? ''}',
@@ -257,11 +279,18 @@ class PollingDemo extends HookWidget {
                       label: const Text('立即刷新'),
                     ),
                     OutlinedButton.icon(
-                      onPressed: request.isPolling ? request.pausePolling : request.resumePolling,
-                      icon: Icon(request.isPolling ? Icons.stop : Icons.play_arrow, size: 18),
+                      onPressed: request.isPolling
+                          ? request.pausePolling
+                          : request.resumePolling,
+                      icon: Icon(
+                        request.isPolling ? Icons.stop : Icons.play_arrow,
+                        size: 18,
+                      ),
                       label: Text(request.isPolling ? '停止轮询' : '恢复轮询'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: request.isPolling ? Colors.orange : Colors.green,
+                        foregroundColor: request.isPolling
+                            ? Colors.orange
+                            : Colors.green,
                       ),
                     ),
                   ],
@@ -284,19 +313,13 @@ class PollingDemo extends HookWidget {
             width: 80,
             child: Text(
               '$label:',
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.grey[700], fontSize: 13),
             ),
           ),
           Expanded(
             child: Text(
               value?.toString() ?? '-',
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
             ),
           ),
         ],

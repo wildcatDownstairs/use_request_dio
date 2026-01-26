@@ -12,13 +12,17 @@ class HttpMethodsDemo extends HookWidget {
   @override
   Widget build(BuildContext context) {
     // 创建 DioHttpAdapter 实例
-    final http = useMemoized(() => DioHttpAdapter(
-          dio: Dio(BaseOptions(
+    final http = useMemoized(
+      () => DioHttpAdapter(
+        dio: Dio(
+          BaseOptions(
             baseUrl: 'https://jsonplaceholder.typicode.com',
             connectTimeout: const Duration(seconds: 10),
             receiveTimeout: const Duration(seconds: 10),
-          )),
-        ));
+          ),
+        ),
+      ),
+    );
 
     // 操作日志
     final logs = useState<List<String>>([]);
@@ -38,7 +42,9 @@ class HttpMethodsDemo extends HookWidget {
     int safeUserId(dynamic rawId) {
       final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 1;
       if (id < 1 || id > 10) {
-        addLog('JSONPlaceholder 仅支持 /users/1-10 的 PUT/PATCH/DELETE；已回退到 /users/1');
+        addLog(
+          'JSONPlaceholder 仅支持 /users/1-10 的 PUT/PATCH/DELETE；已回退到 /users/1',
+        );
         return 1;
       }
       return id;
@@ -311,21 +317,23 @@ class HttpMethodsDemo extends HookWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: logs.value
-                        .map((log) => Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                log,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 12,
-                                  color: log.contains('成功')
-                                      ? Colors.greenAccent
-                                      : log.contains('失败')
-                                          ? Colors.redAccent
-                                          : Colors.white70,
-                                ),
+                        .map(
+                          (log) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              log,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                                color: log.contains('成功')
+                                    ? Colors.greenAccent
+                                    : log.contains('失败')
+                                    ? Colors.redAccent
+                                    : Colors.white70,
                               ),
-                            ))
+                            ),
+                          ),
+                        )
                         .toList(),
                   ),
                 ),
@@ -423,10 +431,7 @@ class _UserInfoRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _UserInfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _UserInfoRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -439,18 +444,10 @@ class _UserInfoRow extends StatelessWidget {
             width: 50,
             child: Text(
               '$label:',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
         ],
       ),
     );

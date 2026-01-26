@@ -9,7 +9,10 @@ class ManualRequestDemo extends HookWidget {
   Future<List<dynamic>> _searchUsers(String keyword) async {
     if (keyword.isEmpty) return [];
     final dio = Dio();
-    final res = await dio.get('https://dummyjson.com/users/search', queryParameters: {'q': keyword});
+    final res = await dio.get(
+      'https://dummyjson.com/users/search',
+      queryParameters: {'q': keyword},
+    );
     final map = res.data as Map;
     final users = map['users'] as List? ?? [];
     return users;
@@ -20,9 +23,7 @@ class ManualRequestDemo extends HookWidget {
     final controller = useTextEditingController();
     final request = useRequest<List<dynamic>, String>(
       _searchUsers,
-      options: const UseRequestOptions(
-        manual: true,
-      ),
+      options: const UseRequestOptions(manual: true),
     );
 
     return Column(
@@ -99,7 +100,11 @@ class ManualRequestDemo extends HookWidget {
                     alignment: Alignment.center,
                     child: Column(
                       children: [
-                        Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                        Icon(
+                          Icons.search_off,
+                          size: 48,
+                          color: Colors.grey[400],
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           '未找到匹配的用户',
@@ -109,44 +114,51 @@ class ManualRequestDemo extends HookWidget {
                     ),
                   )
                 else
-                  ...request.data!.map((user) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: Colors.blue[100],
-                              child: Text((user['firstName'] ?? '?').toString()[0].toUpperCase(), style: TextStyle(color: Colors.blue[700])),
+                  ...request.data!.map(
+                    (user) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: Colors.blue[100],
+                            child: Text(
+                              (user['firstName'] ?? '?')
+                                  .toString()[0]
+                                  .toUpperCase(),
+                              style: TextStyle(color: Colors.blue[700]),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  Text(
-                                    user['email'] ?? '',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
+                                ),
+                                Text(
+                                  user['email'] ?? '',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      )),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
               if (request.error != null) ...[
                 const SizedBox(height: 16),

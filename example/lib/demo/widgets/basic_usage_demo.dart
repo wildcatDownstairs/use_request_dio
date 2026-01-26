@@ -9,7 +9,9 @@ class BasicUsageDemo extends HookWidget {
 
   Future<Map<String, dynamic>> _fetchUser(int userId) async {
     final dio = Dio();
-    final res = await dio.get('https://jsonplaceholder.typicode.com/users/$userId');
+    final res = await dio.get(
+      'https://jsonplaceholder.typicode.com/users/$userId',
+    );
     return res.data as Map<String, dynamic>;
   }
 
@@ -60,9 +62,17 @@ class BasicUsageDemo extends HookWidget {
                   children: [
                     _buildStatusChip('Loading', request.loading, Colors.orange),
                     const SizedBox(width: 8),
-                    _buildStatusChip('Has Data', request.data != null, Colors.green),
+                    _buildStatusChip(
+                      'Has Data',
+                      request.data != null,
+                      Colors.green,
+                    ),
                     const SizedBox(width: 8),
-                    _buildStatusChip('Has Error', request.error != null, Colors.red),
+                    _buildStatusChip(
+                      'Has Error',
+                      request.error != null,
+                      Colors.red,
+                    ),
                   ],
                 ),
               ),

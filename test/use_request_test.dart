@@ -5,6 +5,9 @@ import 'package:use_request/use_request.dart';
 void main() {
   test('package exports core symbols', () {
     expect(useRequest, isNotNull);
-    expect(const UseRequestOptions<void, void>(), isA<UseRequestOptions<void, void>>());
+    expect(
+      const UseRequestOptions<void, void>(),
+      isA<UseRequestOptions<void, void>>(),
+    );
   });
 }

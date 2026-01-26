@@ -146,18 +146,14 @@ class _UseRequestDemoPageState extends ConsumerState<UseRequestDemoPage> {
       body: Row(
         children: [
           if (!isMobile) _buildSidebar(),
-          Expanded(
-            child: _buildContent(),
-          ),
+          Expanded(child: _buildContent()),
         ],
       ),
     );
   }
 
   Widget _buildDrawer() {
-    return Drawer(
-      child: _buildNavigationList(),
-    );
+    return Drawer(child: _buildNavigationList());
   }
 
   Widget _buildSidebar() {
@@ -165,9 +161,7 @@ class _UseRequestDemoPageState extends ConsumerState<UseRequestDemoPage> {
       width: 280,
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          right: BorderSide(color: Colors.grey[200]!),
-        ),
+        border: Border(right: BorderSide(color: Colors.grey[200]!)),
       ),
       child: _buildNavigationList(),
     );
@@ -224,13 +218,23 @@ class _UseRequestDemoPageState extends ConsumerState<UseRequestDemoPage> {
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text('操作日志', style: TextStyle(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+          child: Text(
+            '操作日志',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: _logs.take(5).map((e) => Text('• $e', style: const TextStyle(fontSize: 12))).toList(),
+            children: _logs
+                .take(5)
+                .map((e) => Text('• $e', style: const TextStyle(fontSize: 12)))
+                .toList(),
           ),
         ),
       ],
@@ -247,10 +251,7 @@ class _UseRequestDemoPageState extends ConsumerState<UseRequestDemoPage> {
         return Padding(
           key: section.key,
           padding: const EdgeInsets.only(bottom: 32),
-          child: _DemoSectionCard(
-            section: section,
-            index: index,
-          ),
+          child: _DemoSectionCard(section: section, index: index),
         );
       }).toList(),
     );
@@ -277,18 +278,13 @@ class _DemoSectionCard extends StatelessWidget {
   final DemoSection section;
   final int index;
 
-  const _DemoSectionCard({
-    required this.section,
-    required this.index,
-  });
+  const _DemoSectionCard({required this.section, required this.index});
 
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -310,11 +306,7 @@ class _DemoSectionCard extends StatelessWidget {
                     color: Colors.blue[100],
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    section.icon,
-                    color: Colors.blue[700],
-                    size: 24,
-                  ),
+                  child: Icon(section.icon, color: Colors.blue[700], size: 24),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -331,10 +323,7 @@ class _DemoSectionCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         section.description,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[700],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                       ),
                     ],
                   ),
@@ -343,10 +332,7 @@ class _DemoSectionCard extends StatelessWidget {
             ),
           ),
           // Content
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: section.widget,
-          ),
+          Padding(padding: const EdgeInsets.all(24), child: section.widget),
         ],
       ),
     );
