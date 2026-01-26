@@ -7,17 +7,16 @@ class PaginationDemo extends HookWidget {
   final bool enableAutoLoad;
   const PaginationDemo({super.key, this.enableAutoLoad = true});
 
-  Future<List<Map<String, dynamic>>> _fetchPosts(Map<String, int> params) async {
+  Future<List<Map<String, dynamic>>> _fetchPosts(
+    Map<String, int> params,
+  ) async {
     final page = params['page'] ?? 1;
     final pageSize = params['pageSize'] ?? 10;
 
     final dio = Dio();
     final res = await dio.get(
       'https://jsonplaceholder.typicode.com/posts',
-      queryParameters: {
-        '_page': page,
-        '_limit': pageSize,
-      },
+      queryParameters: {'_page': page, '_limit': pageSize},
     );
 
     return (res.data as List)
@@ -33,7 +32,9 @@ class PaginationDemo extends HookWidget {
       _fetchPosts,
       options: UseRequestOptions(
         manual: !enableAutoLoad,
-        defaultParams: enableAutoLoad ? const {'page': 1, 'pageSize': pageSize} : null,
+        defaultParams: enableAutoLoad
+            ? const {'page': 1, 'pageSize': pageSize}
+            : null,
         loadMoreParams: (lastParams, data) {
           final nextPage = (lastParams['page'] ?? 1) + 1;
           return {'page': nextPage, 'pageSize': pageSize};
@@ -154,7 +155,8 @@ class PaginationDemo extends HookWidget {
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: request.data!.length,
-                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final post = request.data![index];
                       return ListTile(
@@ -212,11 +214,11 @@ class PaginationDemo extends HookWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: request.hasMore == true ? request.loadMore : null,
+                      onPressed: request.hasMore == true
+                          ? request.loadMore
+                          : null,
                       icon: const Icon(Icons.add, size: 18),
-                      label: Text(
-                        request.hasMore == true ? '加载更多' : '已全部加载',
-                      ),
+                      label: Text(request.hasMore == true ? '加载更多' : '已全部加载'),
                     ),
                   ),
               ],

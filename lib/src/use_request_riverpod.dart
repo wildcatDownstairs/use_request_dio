@@ -17,6 +17,7 @@ import 'utils/focus_manager.dart';
 import 'utils/cache.dart';
 import 'utils/cache_policy.dart';
 import 'utils/cancel_token.dart';
+import 'utils/dio_adapter.dart' show HttpRequestConfig;
 
 /// 请求状态管理的 StateNotifier 实现
 class UseRequestNotifier<TData, TParams>
@@ -202,6 +203,21 @@ class UseRequestNotifier<TData, TParams>
     TParams params, {
     bool isLoadMore = false,
   }) async {
+    // If the params is HttpRequestConfig, merge default timeouts from options.
+    final TParams callParams;
+    if (params is HttpRequestConfig) {
+      final config = params;
+      callParams =
+          config.copyWith(
+                connectTimeout: config.connectTimeout ?? options.connectTimeout,
+                receiveTimeout: config.receiveTimeout ?? options.receiveTimeout,
+                sendTimeout: config.sendTimeout ?? options.sendTimeout,
+              )
+              as TParams;
+    } else {
+      callParams = params;
+    }
+
     final currentRequestCount = (_requestCounts[key] ?? 0) + 1;
     _requestCounts[key] = currentRequestCount;
 
@@ -275,7 +291,7 @@ class UseRequestNotifier<TData, TParams>
       // 执行失败重试（若配置）
       if (options.retryCount != null && options.retryCount! > 0) {
         final future = executeWithRetry<TData>(
-          () => service(params),
+          () => service(callParams),
           maxRetries: options.retryCount!,
           retryInterval: options.retryInterval ?? const Duration(seconds: 1),
           cancelToken: cancelToken,
@@ -289,7 +305,7 @@ class UseRequestNotifier<TData, TParams>
         }
         result = await future;
       } else {
-        final future = service(params);
+        final future = service(callParams);
         if (cacheKey != null && cacheKey.isNotEmpty) {
           setPendingCache<TData>(cacheKey, future);
         }
@@ -380,10 +396,6 @@ class UseRequestNotifier<TData, TParams>
 
   /// 异步执行请求（支持防抖/节流）
   Future<TData> runAsync(TParams params, {bool isLoadMore = false}) async {
-    if (!_ready) {
-      throw StateError('Request not ready');
-    }
-
     final key = _getKey(params);
 
     if (_debouncer != null) {

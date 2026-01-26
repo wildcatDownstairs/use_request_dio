@@ -34,7 +34,7 @@ English | [简体中文](README.md)
 
 ### Core
 - Auto/manual/ready: control initial request by `manual` + `defaultParams`; when
-  `ready=false`, auto request & polling are deferred.
+  `ready=false`, auto request & polling are deferred (manual `run/runAsync` still works).
 - Polling: periodic fetch via `pollingInterval`, with start/stop controls
   (Riverpod exposes methods).
 - Polling visibility: when `pollingWhenHidden=false`, polling pauses on
@@ -44,8 +44,8 @@ English | [简体中文](README.md)
 - Debounce / throttle: `debounceInterval` or `throttleInterval` (mutually
   exclusive), with leading/trailing and debounce `maxWait`.
 - Refresh on focus: `refreshOnFocus` refreshes when app regains focus.
-- Dependency refresh: `refreshDeps` / `refreshDepsAction` (Hook) triggers refresh
-  when deps change.
+- Dependency refresh: `refreshDeps` / `refreshDepsAction`.
+  Hook auto-watches deps; Riverpod also supports deps refresh via notifier method.
 - Cache & concurrency: `cacheKey` + `cacheTime`/`staleTime` cache results.
   `fetchKey` isolates cancel/requestCount per key; **state is single-active-key**
   (only the latest key updates UI).
@@ -216,16 +216,26 @@ await http.patch('/users/1', data: {'status': 'active'});
 Integration with `useRequest`:
 
 ```dart
-final fetchUsers = createDioService<List<dynamic>, void>(
-  dio: Dio(BaseOptions(baseUrl: 'https://jsonplaceholder.typicode.com')),
-  method: HttpMethod.get,
-  path: '/users',
+final http = DioHttpAdapter.withBaseUrl('https://jsonplaceholder.typicode.com');
+
+// Build a Service where params is HttpRequestConfig (recommended).
+final fetchUsers = createDioService<List<dynamic>>(
+  http,
+  transformer: (res) => (res.data as List<dynamic>?) ?? const [],
 );
 
-final result = useRequest<List<dynamic>, void>(
+final result = useRequest<List<dynamic>, HttpRequestConfig>(
   fetchUsers,
-  options: const UseRequestOptions(manual: false),
+  options: const UseRequestOptions(
+    manual: true,
+    // Optional: default timeouts (applied only when TParams=HttpRequestConfig)
+    connectTimeout: Duration(seconds: 5),
+    receiveTimeout: Duration(seconds: 15),
+    sendTimeout: Duration(seconds: 15),
+  ),
 );
+
+result.run(HttpRequestConfig.get('/users'));
 ```
 
 ---
@@ -241,7 +251,7 @@ const UseRequestOptions({
   bool ready = true,
   TParams? defaultParams,
 
-  // Dependency refresh (Hook)
+  // Dependency refresh
   List<Object?>? refreshDeps,
   VoidCallback? refreshDepsAction,
 
@@ -268,7 +278,7 @@ const UseRequestOptions({
   bool retryExponential = true,
   OnRetryAttempt? onRetryAttempt,
 
-  // Timeouts (v2.0)
+  // Timeouts (v2.0, effective when TParams=HttpRequestConfig)
   Duration? connectTimeout,
   Duration? receiveTimeout,
   Duration? sendTimeout,

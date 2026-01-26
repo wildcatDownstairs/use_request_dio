@@ -11,10 +11,13 @@ class DebounceDemo extends HookWidget {
     final dio = Dio();
     final res = await dio.get('https://jsonplaceholder.typicode.com/posts');
     final posts = res.data as List;
-    return posts.where((post) {
-      final title = (post['title'] ?? '').toString().toLowerCase();
-      return title.contains(keyword.toLowerCase());
-    }).take(10).toList();
+    return posts
+        .where((post) {
+          final title = (post['title'] ?? '').toString().toLowerCase();
+          return title.contains(keyword.toLowerCase());
+        })
+        .take(10)
+        .toList();
   }
 
   @override
@@ -37,6 +40,7 @@ class DebounceDemo extends HookWidget {
       void listener() {
         request.run(controller.text);
       }
+
       controller.addListener(listener);
       return () => controller.removeListener(listener);
     }, [controller]);
@@ -75,7 +79,11 @@ class DebounceDemo extends HookWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.amber[700], size: 20),
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.amber[700],
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -106,11 +114,11 @@ class DebounceDemo extends HookWidget {
                           ),
                         )
                       : controller.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () => controller.clear(),
-                            )
-                          : null,
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () => controller.clear(),
+                        )
+                      : null,
                   border: const OutlineInputBorder(),
                 ),
               ),
@@ -132,7 +140,11 @@ class DebounceDemo extends HookWidget {
                     alignment: Alignment.center,
                     child: Column(
                       children: [
-                        Icon(Icons.article_outlined, size: 48, color: Colors.grey[400]),
+                        Icon(
+                          Icons.article_outlined,
+                          size: 48,
+                          color: Colors.grey[400],
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           '未找到匹配的文章',

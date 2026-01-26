@@ -32,10 +32,10 @@
 - 自动/手动/就绪：通过 `manual` 与 `defaultParams` 控制初始请求，`ready=false` 时延迟首次请求/轮询
 - 轮询：`pollingInterval` 周期拉取，支持开始/停止（Riverpod 版提供控制方法）
 - 轮询可见性：`pollingWhenHidden=false` 时应用失焦/后台会暂停轮询，回到前台恢复
-- 轮询错误策略：`pausePollingOnError` 遇错自动暂停（手动恢复）
+- 轮询错误策略：`pausePollingOnError` 遇错自动暂停；可配合 `pollingRetryInterval` 自动恢复（否则手动恢复）
 - 防抖/节流：`debounceInterval` / `throttleInterval`（二选一），支持 leading/trailing、debounce 的 maxWait
 - 聚焦刷新：`refreshOnFocus` 在应用重新获得焦点时自动刷新
-- 依赖刷新：`refreshDeps` / `refreshDepsAction`（Hook 版），依赖变化后自动刷新
+- 依赖刷新：`refreshDeps` / `refreshDepsAction`（Hook 版自动监听；Riverpod 版也支持，可通过 notifier 的 `refreshDeps(...)` 手动触发）
 - 缓存与并发控制：`cacheKey` + `cacheTime`/`staleTime` 缓存结果，`fetchKey` 按 key 隔离取消/计数（状态以最后一次触发的 key 为准）
 - 加载更多：`loadMoreParams` + `dataMerger` + `hasMore`，提供 `loadMore`/`loadingMore`
 - 失败重试：`retryCount` + `retryInterval`，网络不稳定场景更鲁棒
@@ -46,7 +46,7 @@
 
 ### 高级功能（v2.0 新增）
 - **HTTP 语义层**：`DioHttpAdapter` 提供 GET/POST/PUT/DELETE/PATCH 等语义化方法
-- **超时配置**：`connectTimeout`/`receiveTimeout`/`sendTimeout` 精细控制请求超时
+- **超时配置**：配合 `HttpRequestConfig` / `DioHttpAdapter` 使用 `connectTimeout`/`receiveTimeout`/`sendTimeout` 精细控制超时
 - **文件上传/下载**：支持进度回调的文件传输功能
 - **重试回调**：`onRetryAttempt` 实时追踪重试进度
 
@@ -250,18 +250,27 @@ await http.patch('/users/1', data: {'status': 'active'});
 ### 与 useRequest 集成
 
 ```dart
-// 使用 createDioService 工厂函数
-final fetchUsers = createDioService<List<dynamic>, void>(
-  dio: Dio(BaseOptions(baseUrl: 'https://jsonplaceholder.typicode.com')),
-  method: HttpMethod.get,
-  path: '/users',
+final http = DioHttpAdapter.withBaseUrl('https://jsonplaceholder.typicode.com');
+
+// 创建 Service：参数使用 HttpRequestConfig（推荐）
+final fetchUsers = createDioService<List<dynamic>>(
+  http,
+  transformer: (res) => (res.data as List<dynamic>?) ?? const [],
 );
 
-// 在组件中使用
-final result = useRequest<List<dynamic>, void>(
+final result = useRequest<List<dynamic>, HttpRequestConfig>(
   fetchUsers,
-  options: const UseRequestOptions(manual: false),
+  options: const UseRequestOptions(
+    manual: true,
+    // 可选：作为默认超时（当 config 未显式指定时才会生效）
+    connectTimeout: Duration(seconds: 5),
+    receiveTimeout: Duration(seconds: 15),
+    sendTimeout: Duration(seconds: 15),
+  ),
 );
+
+// 发起 GET
+result.run(HttpRequestConfig.get('/users'));
 ```
 
 ### 超时配置
@@ -277,8 +286,15 @@ final http = DioHttpAdapter(
   )),
 );
 
-// 方式二：在 UseRequestOptions 中配置（覆盖 Dio 默认值）
-UseRequestOptions(
+// 方式二：在 HttpRequestConfig 中配置（单次请求，推荐）
+final config = HttpRequestConfig.get(
+  '/users',
+  connectTimeout: Duration(seconds: 5),
+  receiveTimeout: Duration(seconds: 15),
+);
+
+// 方式三：在 UseRequestOptions 中配置（仅当 TParams=HttpRequestConfig 时，会自动合并到 config）
+final options = UseRequestOptions(
   connectTimeout: Duration(seconds: 5),
   receiveTimeout: Duration(seconds: 15),
   sendTimeout: Duration(seconds: 15),
@@ -376,7 +392,7 @@ const UseRequestOptions({
   bool retryExponential = true,     // 是否使用指数退避
   OnRetryAttempt? onRetryAttempt,   // 每次重试时的回调 (attempt, error) => void
 
-  // ========== 超时配置（v2.0 新增）==========
+  // ========== 超时配置（v2.0 新增；当 TParams=HttpRequestConfig 时生效）==========
   Duration? connectTimeout,         // 连接超时
   Duration? receiveTimeout,         // 接收超时
   Duration? sendTimeout,            // 发送超时
@@ -408,8 +424,8 @@ const UseRequestOptions({
 ```
 
 - 自动请求：`manual=false` 且提供 `defaultParams` 时，`ready=true` 时挂载后自动拉取
-- 就绪态：`ready=false` 时阻止自动请求/轮询；设为 `true` 后再进入正常流程
-- 依赖刷新：`refreshDeps` 变动时自动刷新（Hook 版），可用 `refreshDepsAction` 自定义行为
+- 就绪态：`ready=false` 时阻止自动请求/轮询；但手动 `run/runAsync` 不受影响；设为 `true` 后再进入正常流程
+- 依赖刷新：`refreshDeps` / `refreshDepsAction`（Hook 版自动监听 deps；Riverpod 版可通过 notifier 的 `refreshDeps(...)` 触发）
 - 缓存与复用：显式传入 `cacheKey` 开启缓存；`cacheTime` 控制缓存有效期（null 表示不过期），`staleTime` 超时后会在保留缓存的同时重新请求
 - 并发隔离：`fetchKey` 将不同 key 的请求计数/取消令牌隔离；但状态仍是单态，只有最后一次 `run` 的 key（active key）会更新 UI，其它 key 的结果视为被覆盖
 - 加载更多：提供 `loadMoreParams` 生成下一页参数、`dataMerger` 合并数据、`hasMore` 判定是否还有更多；`UseRequestResult` 暴露 `loadingMore`、`hasMore` 与 `loadMore`/`loadMoreAsync`

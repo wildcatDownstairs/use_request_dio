@@ -651,6 +651,31 @@ class DioHttpAdapter {
     );
   }
 
+  /// 上传文件的便捷别名（与 README 示例对齐）
+  ///
+  /// 等价于 [upload]，但直接接受 filePath。
+  Future<Response<T>> uploadFile<T>(
+    String path, {
+    required String filePath,
+    String fileField = 'file',
+    String? filename,
+    Map<String, dynamic>? extraFields,
+    Map<String, dynamic>? headers,
+    CancelToken? cancelToken,
+    ProgressCallback? onProgress,
+  }) async {
+    final file = await MultipartFile.fromFile(filePath, filename: filename);
+    return upload<T>(
+      path,
+      file: file,
+      fieldName: fileField,
+      extraFields: extraFields,
+      headers: headers,
+      cancelToken: cancelToken,
+      onProgress: onProgress,
+    );
+  }
+
   /// 下载文件的便捷方法
   ///
   /// ```dart
@@ -680,6 +705,29 @@ class DioHttpAdapter {
       options: Options(headers: headers),
       cancelToken: cancelToken,
       onReceiveProgress: onProgress,
+      deleteOnError: deleteOnError,
+    );
+  }
+
+  /// 下载文件的便捷别名（与 README 示例对齐）
+  ///
+  /// 等价于 [download]。
+  Future<Response> downloadFile(
+    String urlPath, {
+    required String savePath,
+    Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
+    CancelToken? cancelToken,
+    ProgressCallback? onProgress,
+    bool deleteOnError = true,
+  }) {
+    return download(
+      urlPath,
+      savePath,
+      queryParameters: queryParameters,
+      headers: headers,
+      cancelToken: cancelToken,
+      onProgress: onProgress,
       deleteOnError: deleteOnError,
     );
   }

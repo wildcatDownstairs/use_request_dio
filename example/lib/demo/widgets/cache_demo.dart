@@ -18,7 +18,9 @@ class CacheDemo extends HookWidget {
       // 模拟网络延迟
       await Future.delayed(const Duration(milliseconds: 500));
       final dio = Dio();
-      final res = await dio.get('https://jsonplaceholder.typicode.com/users/$userId');
+      final res = await dio.get(
+        'https://jsonplaceholder.typicode.com/users/$userId',
+      );
       return {
         ...res.data as Map<String, dynamic>,
         'fetchTime': DateTime.now().toIso8601String(),
@@ -70,7 +72,11 @@ class CacheDemo extends HookWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.purple[700], size: 20),
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.purple[700],
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -167,7 +173,11 @@ class CacheDemo extends HookWidget {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                          Icon(
+                            Icons.access_time,
+                            size: 14,
+                            color: Colors.grey[600],
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '获取时间: ${request.data!['fetchTime']?.toString().substring(11, 19) ?? ''}',
@@ -205,9 +215,9 @@ class CacheDemo extends HookWidget {
                     onPressed: () {
                       clearAllCache();
                       requestCount.value = 0;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('缓存已清空')),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('缓存已清空')));
                     },
                     icon: const Icon(Icons.delete_outline, size: 18),
                     label: const Text('清空缓存'),

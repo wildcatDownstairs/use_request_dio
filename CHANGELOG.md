@@ -1,3 +1,10 @@
+## 0.0.6
+
+- Align docs with implementation: make `UseRequestOptions` timeouts effective when `TParams=HttpRequestConfig`.
+- Add `uploadFile` / `downloadFile` aliases to `DioHttpAdapter` to match README examples.
+- Unify `ready` semantics between Hook and Riverpod (ready=false gates auto/polling, manual run still works).
+- Fix example widget test to reflect the current demo app.
+
 ## 0.0.5
 
 - Optimize auto-request logic: allow auto-trigger when `defaultParams` is null (provided `manual` is false).

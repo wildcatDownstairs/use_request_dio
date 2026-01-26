@@ -280,7 +280,11 @@ class UseRequestOptions<TData, TParams> {
   /// ```
   final TParams? defaultParams;
 
-  /// 依赖变化时自动刷新（仅 Hook 版有效）
+  /// 依赖变化时触发刷新
+  ///
+  /// - Hook 版：可通过 [refreshDeps] / [refreshDepsAction] 自动监听依赖变化。
+  /// - Riverpod 版：同样支持该配置，并且可以通过 notifier 暴露的
+  ///   `refreshDeps(deps, action: ...)` 手动触发。
   ///
   /// 类似 ahooks 的 `refreshDeps`，当依赖项变化时自动重新请求。
   ///
@@ -313,9 +317,12 @@ class UseRequestOptions<TData, TParams> {
   // 超时配置 - Timeout Configuration
   // ---------------------------------------------------------------------------
 
-  /// 连接超时时间
+  /// 连接超时时间（对 HttpRequestConfig 生效）
   ///
   /// 建立 TCP 连接的最大等待时间。超时后抛出 `DioExceptionType.connectionTimeout`。
+  ///
+  /// 说明：当 `TParams` 为 `HttpRequestConfig` 时，如果该 config 未显式设置
+  /// `connectTimeout`，会自动使用这里的默认值。
   ///
   /// ```dart
   /// UseRequestOptions(
@@ -324,7 +331,7 @@ class UseRequestOptions<TData, TParams> {
   /// ```
   final Duration? connectTimeout;
 
-  /// 接收超时时间
+  /// 接收超时时间（对 HttpRequestConfig 生效）
   ///
   /// 等待服务器响应数据的最大时间。超时后抛出 `DioExceptionType.receiveTimeout`。
   /// 适用于大文件下载或慢速 API。
@@ -336,7 +343,7 @@ class UseRequestOptions<TData, TParams> {
   /// ```
   final Duration? receiveTimeout;
 
-  /// 发送超时时间
+  /// 发送超时时间（对 HttpRequestConfig 生效）
   ///
   /// 发送请求数据（如文件上传）的最大时间。超时后抛出 `DioExceptionType.sendTimeout`。
   ///

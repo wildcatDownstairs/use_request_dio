@@ -180,10 +180,7 @@ class RetryDemo extends HookWidget {
                       const SizedBox(height: 4),
                       Text(
                         '已重试 ${retryCount.value} 次',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[700],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                       ),
                     ],
                   ),

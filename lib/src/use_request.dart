@@ -13,6 +13,7 @@ import 'utils/focus_manager.dart';
 import 'utils/cancel_token.dart';
 import 'utils/cache.dart';
 import 'utils/cache_policy.dart';
+import 'utils/dio_adapter.dart' show HttpRequestConfig;
 
 /// useRequest Hook 实现
 /// 借鉴 ahooks 的数据请求能力并结合 Dart/Flutter 特性
@@ -165,6 +166,24 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     TParams params, {
     bool isLoadMore = false,
   }) async {
+    // If the params is HttpRequestConfig, merge default timeouts from options.
+    // This makes UseRequestOptions.connectTimeout/receiveTimeout/sendTimeout effective
+    // for DioHttpAdapter + HttpRequestConfig scenarios.
+    final TParams callParams = params is HttpRequestConfig
+        ? (params as HttpRequestConfig).copyWith(
+                connectTimeout:
+                    (params as HttpRequestConfig).connectTimeout ??
+                    opts.connectTimeout,
+                receiveTimeout:
+                    (params as HttpRequestConfig).receiveTimeout ??
+                    opts.receiveTimeout,
+                sendTimeout:
+                    (params as HttpRequestConfig).sendTimeout ??
+                    opts.sendTimeout,
+              )
+              as TParams
+        : params;
+
     // Increment request count per key
     final currentRequestCount = (requestCountMapRef.value[key] ?? 0) + 1;
     requestCountMapRef.value[key] = currentRequestCount;
@@ -242,7 +261,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       // 执行失败重试（若配置）
       if (opts.retryCount != null && opts.retryCount! > 0) {
         final future = executeWithRetry<TData>(
-          () => service(params),
+          () => service(callParams),
           maxRetries: opts.retryCount!,
           retryInterval: opts.retryInterval ?? const Duration(seconds: 1),
           cancelToken: cancelToken,
@@ -256,7 +275,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         }
         result = await future;
       } else {
-        final future = service(params);
+        final future = service(callParams);
         if (cacheKey != null && cacheKey.isNotEmpty) {
           setPendingCache<TData>(cacheKey, future);
         }
