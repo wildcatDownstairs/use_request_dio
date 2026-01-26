@@ -1,3 +1,7 @@
+## 0.0.7
+
+- Example: add an inline Quick Start snippet in `example/lib/main.dart` so pub.dev can render a meaningful Example tab.
+
 ## 0.0.6
 
 - Align docs with implementation: make `UseRequestOptions` timeouts effective when `TParams=HttpRequestConfig`.
