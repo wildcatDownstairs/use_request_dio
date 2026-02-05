@@ -31,6 +31,8 @@ class UseRequestNotifier<TData, TParams>
   String? _lastKey;
   bool _ready = true;
   List<Object?>? _lastRefreshDeps;
+  bool _pendingRefreshDeps = false;
+  VoidCallback? _lastRefreshDepsAction;
 
   Debouncer<TData>? _debouncer;
   Throttler<TData>? _throttler;
@@ -46,9 +48,7 @@ class UseRequestNotifier<TData, TParams>
   UseRequestNotifier({required this.service, required this.options})
     : super(UseRequestState<TData, TParams>(params: options.defaultParams)) {
     _ready = options.ready;
-    _lastRefreshDeps = options.refreshDeps != null
-        ? List<Object?>.from(options.refreshDeps!)
-        : null;
+    _lastRefreshDeps = null;
     if (options.debounceInterval != null && options.throttleInterval != null) {
       throw ArgumentError('debounceInterval 与 throttleInterval 不能同时设置，请二选一');
     }
@@ -423,10 +423,10 @@ class UseRequestNotifier<TData, TParams>
     if (_lastKey == null) {
       throw StateError('No previous key to refresh with');
     }
-    final params = _lastParamsByKey[_lastKey!];
-    if (params == null) {
+    if (!_lastParamsByKey.containsKey(_lastKey!)) {
       throw StateError('No previous params to refresh with');
     }
+    final params = _lastParamsByKey[_lastKey!];
     return runAsync(params as TParams);
   }
 
@@ -503,6 +503,20 @@ class UseRequestNotifier<TData, TParams>
     _ready = ready;
 
     if (_ready) {
+      if (_pendingRefreshDeps && _lastRefreshDeps != null) {
+        _pendingRefreshDeps = false;
+        final action = _lastRefreshDepsAction;
+        if (action != null) {
+          action();
+        } else if (!options.manual) {
+          final params = _lastKey != null
+              ? _lastParamsByKey[_lastKey!]
+              : options.defaultParams;
+          if (params != null) {
+            run(params as TParams);
+          }
+        }
+      }
       if (!options.manual) {
         final params = _lastKey != null
             ? _lastParamsByKey[_lastKey!]
@@ -542,9 +556,11 @@ class UseRequestNotifier<TData, TParams>
     if (!changed) return;
 
     _lastRefreshDeps = List<Object?>.from(deps);
+    _lastRefreshDepsAction = action;
 
     if (action != null) {
       action();
+      _pendingRefreshDeps = false;
       return;
     }
 
@@ -555,6 +571,9 @@ class UseRequestNotifier<TData, TParams>
       if (params != null) {
         run(params as TParams);
       }
+      _pendingRefreshDeps = false;
+    } else {
+      _pendingRefreshDeps = true;
     }
   }
 

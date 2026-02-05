@@ -1,3 +1,13 @@
+## 0.0.9
+
+- Fix: refreshDeps change detection now survives list reuse/mutation by hashing deps and copying snapshots.
+- Fix: refreshDeps changes while `ready=false` are replayed once `ready=true` (Hook + Riverpod).
+- Fix: Riverpod refreshDeps initial trigger actually fires (no pre-seeded deps).
+
+## 0.0.8
+
+- Fix: allow `refresh()` to reuse a previous `null` params entry instead of throwing (both Hook and Riverpod).
+
 ## 0.0.7
 
 - Example: add an inline Quick Start snippet in `example/lib/main.dart` so pub.dev can render a meaningful Example tab.
