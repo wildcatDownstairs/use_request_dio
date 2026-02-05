@@ -70,7 +70,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   }
 
   // 上一次 refreshDeps（用于依赖刷新比较）
-  final lastRefreshDepsRef = useRef<List<Object?>?>(opts.refreshDeps);
+  final lastRefreshDepsRef = useRef<List<Object?>?>(
+    opts.refreshDeps == null ? null : List<Object?>.from(opts.refreshDeps!),
+  );
+  // ready=false 时变更的 refreshDeps 会在 ready=true 时补偿触发
+  final pendingRefreshDepsRef = useRef<bool>(false);
 
   // 组件是否仍挂载，避免卸载后更新状态
   final isMountedRef = useRef<bool>(true);
@@ -399,11 +403,12 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     if (lastKey == null) {
       throw StateError('No previous key to refresh with');
     }
-    final params = lastParamsMapRef.value[lastKey];
-    if (params == null) {
+    final paramsMap = lastParamsMapRef.value;
+    if (!paramsMap.containsKey(lastKey)) {
       throw StateError('No previous params to refresh with');
     }
-    return runAsync(params);
+    final params = paramsMap[lastKey];
+    return runAsync(params as TParams);
   }
 
   // 使用上一次参数刷新（不等待返回）
@@ -471,6 +476,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     }
   }
 
+  final refreshDepsKey = opts.refreshDeps == null
+      ? null
+      : Object.hashAll(opts.refreshDeps!);
+
   // 依赖变化时自动刷新（仅在配置了 refreshDeps 时触发）
   useEffect(() {
     final deps = opts.refreshDeps;
@@ -486,7 +495,25 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
       if (opts.refreshDepsAction != null) {
         opts.refreshDepsAction!();
+        pendingRefreshDepsRef.value = false;
       } else if (!opts.manual && opts.ready) {
+        final params =
+            opts.defaultParams ??
+            (lastKeyRef.value != null
+                ? lastParamsMapRef.value[lastKeyRef.value!]
+                : null);
+        if (params != null) {
+          run(params as TParams);
+        }
+        pendingRefreshDepsRef.value = false;
+      } else {
+        pendingRefreshDepsRef.value = true;
+      }
+    } else if (opts.ready && pendingRefreshDepsRef.value) {
+      pendingRefreshDepsRef.value = false;
+      if (opts.refreshDepsAction != null) {
+        opts.refreshDepsAction!();
+      } else if (!opts.manual) {
         final params =
             opts.defaultParams ??
             (lastKeyRef.value != null
@@ -499,7 +526,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     }
 
     return null;
-  }, [opts.refreshDeps, opts.ready]);
+  }, [refreshDepsKey, opts.ready]);
 
   // 设置轮询控制器（按 pollingInterval 变化重建）
   useEffect(
