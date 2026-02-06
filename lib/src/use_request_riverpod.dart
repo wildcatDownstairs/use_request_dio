@@ -512,18 +512,15 @@ class UseRequestNotifier<TData, TParams>
           final params = _lastKey != null
               ? _lastParamsByKey[_lastKey!]
               : options.defaultParams;
-          if (params != null) {
-            run(params as TParams);
-          }
+          // 与 Hook 版保持一致：即使 params 为 null（无参请求），也应触发 run。
+          run(params as TParams);
         }
       }
       if (!options.manual) {
         final params = _lastKey != null
             ? _lastParamsByKey[_lastKey!]
             : options.defaultParams;
-        if (params != null) {
-          run(params as TParams);
-        }
+        run(params as TParams);
       }
 
       if (options.pollingInterval != null &&
@@ -568,9 +565,8 @@ class UseRequestNotifier<TData, TParams>
       final params = _lastKey != null
           ? _lastParamsByKey[_lastKey!]
           : options.defaultParams;
-      if (params != null) {
-        run(params as TParams);
-      }
+      // refreshDeps 语义：依赖变化时触发一次刷新，无参请求也应生效。
+      run(params as TParams);
       _pendingRefreshDeps = false;
     } else {
       _pendingRefreshDeps = true;
