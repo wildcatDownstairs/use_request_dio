@@ -1,3 +1,7 @@
+## 0.0.10
+
+- Fix: `refreshDeps` now triggers auto refresh even when last/default params is `null` (no-params service), aligning with ahooks.
+
 ## 0.0.9
 
 - Fix: refreshDeps change detection now survives list reuse/mutation by hashing deps and copying snapshots.

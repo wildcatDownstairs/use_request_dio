@@ -497,14 +497,20 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         opts.refreshDepsAction!();
         pendingRefreshDepsRef.value = false;
       } else if (!opts.manual && opts.ready) {
+        // refreshDeps 的语义：依赖变化时，触发一次“使用当前闭包/参数”的刷新。
+        //
+        // 注意：对于“无参请求”（service 不依赖入参，或 TParams 允许为 null），
+        // params 可能为 null。此时也应该触发 run，否则会出现：
+        // - 依赖变了，但不发请求（与 ahooks 行为不一致）
+        // - 需要业务侧额外写兜底 refresh 逻辑
+        //
+        // 因此这里不要用 `params != null` 作为是否触发的条件。
         final params =
             opts.defaultParams ??
             (lastKeyRef.value != null
                 ? lastParamsMapRef.value[lastKeyRef.value!]
                 : null);
-        if (params != null) {
-          run(params as TParams);
-        }
+        run(params as TParams);
         pendingRefreshDepsRef.value = false;
       } else {
         pendingRefreshDepsRef.value = true;
@@ -519,9 +525,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
             (lastKeyRef.value != null
                 ? lastParamsMapRef.value[lastKeyRef.value!]
                 : null);
-        if (params != null) {
-          run(params as TParams);
-        }
+        run(params as TParams);
       }
     }
 
