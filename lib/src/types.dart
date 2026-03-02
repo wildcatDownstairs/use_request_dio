@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+const Object _useRequestOptionsUnset = Object();
+
 // ============================================================================
 // 类型定义 - Type Definitions
 // ============================================================================
@@ -754,84 +756,142 @@ class UseRequestOptions<TData, TParams> {
   UseRequestOptions<TData, TParams> copyWith({
     bool? manual,
     bool? ready,
-    TParams? defaultParams,
-    List<Object?>? refreshDeps,
-    VoidCallback? refreshDepsAction,
-    Duration? connectTimeout,
-    Duration? receiveTimeout,
-    Duration? sendTimeout,
-    Duration? pollingInterval,
+    Object? defaultParams = _useRequestOptionsUnset,
+    Object? refreshDeps = _useRequestOptionsUnset,
+    Object? refreshDepsAction = _useRequestOptionsUnset,
+    Object? connectTimeout = _useRequestOptionsUnset,
+    Object? receiveTimeout = _useRequestOptionsUnset,
+    Object? sendTimeout = _useRequestOptionsUnset,
+    Object? pollingInterval = _useRequestOptionsUnset,
     bool? pollingWhenHidden,
     bool? pausePollingOnError,
-    Duration? pollingRetryInterval,
-    Duration? debounceInterval,
+    Object? pollingRetryInterval = _useRequestOptionsUnset,
+    Object? debounceInterval = _useRequestOptionsUnset,
     bool? debounceLeading,
     bool? debounceTrailing,
-    Duration? debounceMaxWait,
-    Duration? throttleInterval,
+    Object? debounceMaxWait = _useRequestOptionsUnset,
+    Object? throttleInterval = _useRequestOptionsUnset,
     bool? throttleLeading,
     bool? throttleTrailing,
-    int? retryCount,
-    Duration? retryInterval,
+    Object? retryCount = _useRequestOptionsUnset,
+    Object? retryInterval = _useRequestOptionsUnset,
     bool? retryExponential,
-    Duration? loadingDelay,
+    Object? loadingDelay = _useRequestOptionsUnset,
     bool? refreshOnFocus,
     bool? refreshOnReconnect,
-    Stream<bool>? reconnectStream,
-    String Function(TParams params)? cacheKey,
-    Duration? cacheTime,
-    Duration? staleTime,
-    String Function(TParams params)? fetchKey,
-    TParams Function(TParams lastParams, TData? data)? loadMoreParams,
-    TData Function(TData? previous, TData next)? dataMerger,
-    bool Function(TData? data)? hasMore,
-    CancelToken? cancelToken,
-    OnBefore<TParams>? onBefore,
-    OnSuccess<TData, TParams>? onSuccess,
-    OnError<TParams>? onError,
-    OnFinally<TData, TParams>? onFinally,
-    OnRetryAttempt<TParams>? onRetryAttempt,
+    Object? reconnectStream = _useRequestOptionsUnset,
+    Object? cacheKey = _useRequestOptionsUnset,
+    Object? cacheTime = _useRequestOptionsUnset,
+    Object? staleTime = _useRequestOptionsUnset,
+    Object? fetchKey = _useRequestOptionsUnset,
+    Object? loadMoreParams = _useRequestOptionsUnset,
+    Object? dataMerger = _useRequestOptionsUnset,
+    Object? hasMore = _useRequestOptionsUnset,
+    Object? cancelToken = _useRequestOptionsUnset,
+    Object? onBefore = _useRequestOptionsUnset,
+    Object? onSuccess = _useRequestOptionsUnset,
+    Object? onError = _useRequestOptionsUnset,
+    Object? onFinally = _useRequestOptionsUnset,
+    Object? onRetryAttempt = _useRequestOptionsUnset,
   }) {
     return UseRequestOptions<TData, TParams>(
       manual: manual ?? this.manual,
       ready: ready ?? this.ready,
-      defaultParams: defaultParams ?? this.defaultParams,
-      refreshDeps: refreshDeps ?? this.refreshDeps,
-      refreshDepsAction: refreshDepsAction ?? this.refreshDepsAction,
-      connectTimeout: connectTimeout ?? this.connectTimeout,
-      receiveTimeout: receiveTimeout ?? this.receiveTimeout,
-      sendTimeout: sendTimeout ?? this.sendTimeout,
-      pollingInterval: pollingInterval ?? this.pollingInterval,
+      defaultParams: identical(defaultParams, _useRequestOptionsUnset)
+          ? this.defaultParams
+          : defaultParams as TParams?,
+      refreshDeps: identical(refreshDeps, _useRequestOptionsUnset)
+          ? this.refreshDeps
+          : refreshDeps as List<Object?>?,
+      refreshDepsAction: identical(refreshDepsAction, _useRequestOptionsUnset)
+          ? this.refreshDepsAction
+          : refreshDepsAction as VoidCallback?,
+      connectTimeout: identical(connectTimeout, _useRequestOptionsUnset)
+          ? this.connectTimeout
+          : connectTimeout as Duration?,
+      receiveTimeout: identical(receiveTimeout, _useRequestOptionsUnset)
+          ? this.receiveTimeout
+          : receiveTimeout as Duration?,
+      sendTimeout: identical(sendTimeout, _useRequestOptionsUnset)
+          ? this.sendTimeout
+          : sendTimeout as Duration?,
+      pollingInterval: identical(pollingInterval, _useRequestOptionsUnset)
+          ? this.pollingInterval
+          : pollingInterval as Duration?,
       pollingWhenHidden: pollingWhenHidden ?? this.pollingWhenHidden,
       pausePollingOnError: pausePollingOnError ?? this.pausePollingOnError,
-      pollingRetryInterval: pollingRetryInterval ?? this.pollingRetryInterval,
-      debounceInterval: debounceInterval ?? this.debounceInterval,
+      pollingRetryInterval:
+          identical(pollingRetryInterval, _useRequestOptionsUnset)
+          ? this.pollingRetryInterval
+          : pollingRetryInterval as Duration?,
+      debounceInterval: identical(debounceInterval, _useRequestOptionsUnset)
+          ? this.debounceInterval
+          : debounceInterval as Duration?,
       debounceLeading: debounceLeading ?? this.debounceLeading,
       debounceTrailing: debounceTrailing ?? this.debounceTrailing,
-      debounceMaxWait: debounceMaxWait ?? this.debounceMaxWait,
-      throttleInterval: throttleInterval ?? this.throttleInterval,
+      debounceMaxWait: identical(debounceMaxWait, _useRequestOptionsUnset)
+          ? this.debounceMaxWait
+          : debounceMaxWait as Duration?,
+      throttleInterval: identical(throttleInterval, _useRequestOptionsUnset)
+          ? this.throttleInterval
+          : throttleInterval as Duration?,
       throttleLeading: throttleLeading ?? this.throttleLeading,
       throttleTrailing: throttleTrailing ?? this.throttleTrailing,
-      retryCount: retryCount ?? this.retryCount,
-      retryInterval: retryInterval ?? this.retryInterval,
+      retryCount: identical(retryCount, _useRequestOptionsUnset)
+          ? this.retryCount
+          : retryCount as int?,
+      retryInterval: identical(retryInterval, _useRequestOptionsUnset)
+          ? this.retryInterval
+          : retryInterval as Duration?,
       retryExponential: retryExponential ?? this.retryExponential,
-      loadingDelay: loadingDelay ?? this.loadingDelay,
+      loadingDelay: identical(loadingDelay, _useRequestOptionsUnset)
+          ? this.loadingDelay
+          : loadingDelay as Duration?,
       refreshOnFocus: refreshOnFocus ?? this.refreshOnFocus,
       refreshOnReconnect: refreshOnReconnect ?? this.refreshOnReconnect,
-      reconnectStream: reconnectStream ?? this.reconnectStream,
-      cacheKey: cacheKey ?? this.cacheKey,
-      cacheTime: cacheTime ?? this.cacheTime,
-      staleTime: staleTime ?? this.staleTime,
-      fetchKey: fetchKey ?? this.fetchKey,
-      loadMoreParams: loadMoreParams ?? this.loadMoreParams,
-      dataMerger: dataMerger ?? this.dataMerger,
-      hasMore: hasMore ?? this.hasMore,
-      cancelToken: cancelToken ?? this.cancelToken,
-      onBefore: onBefore ?? this.onBefore,
-      onSuccess: onSuccess ?? this.onSuccess,
-      onError: onError ?? this.onError,
-      onFinally: onFinally ?? this.onFinally,
-      onRetryAttempt: onRetryAttempt ?? this.onRetryAttempt,
+      reconnectStream: identical(reconnectStream, _useRequestOptionsUnset)
+          ? this.reconnectStream
+          : reconnectStream as Stream<bool>?,
+      cacheKey: identical(cacheKey, _useRequestOptionsUnset)
+          ? this.cacheKey
+          : cacheKey as String Function(TParams params)?,
+      cacheTime: identical(cacheTime, _useRequestOptionsUnset)
+          ? this.cacheTime
+          : cacheTime as Duration?,
+      staleTime: identical(staleTime, _useRequestOptionsUnset)
+          ? this.staleTime
+          : staleTime as Duration?,
+      fetchKey: identical(fetchKey, _useRequestOptionsUnset)
+          ? this.fetchKey
+          : fetchKey as String Function(TParams params)?,
+      loadMoreParams: identical(loadMoreParams, _useRequestOptionsUnset)
+          ? this.loadMoreParams
+          : loadMoreParams
+                as TParams Function(TParams lastParams, TData? data)?,
+      dataMerger: identical(dataMerger, _useRequestOptionsUnset)
+          ? this.dataMerger
+          : dataMerger as TData Function(TData? previous, TData next)?,
+      hasMore: identical(hasMore, _useRequestOptionsUnset)
+          ? this.hasMore
+          : hasMore as bool Function(TData? data)?,
+      cancelToken: identical(cancelToken, _useRequestOptionsUnset)
+          ? this.cancelToken
+          : cancelToken as CancelToken?,
+      onBefore: identical(onBefore, _useRequestOptionsUnset)
+          ? this.onBefore
+          : onBefore as OnBefore<TParams>?,
+      onSuccess: identical(onSuccess, _useRequestOptionsUnset)
+          ? this.onSuccess
+          : onSuccess as OnSuccess<TData, TParams>?,
+      onError: identical(onError, _useRequestOptionsUnset)
+          ? this.onError
+          : onError as OnError<TParams>?,
+      onFinally: identical(onFinally, _useRequestOptionsUnset)
+          ? this.onFinally
+          : onFinally as OnFinally<TData, TParams>?,
+      onRetryAttempt: identical(onRetryAttempt, _useRequestOptionsUnset)
+          ? this.onRetryAttempt
+          : onRetryAttempt as OnRetryAttempt<TParams>?,
     );
   }
 }

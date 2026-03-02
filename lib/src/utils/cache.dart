@@ -206,13 +206,19 @@ class RequestCache {
   /// // future 完成后会自动从 pending 中移除
   /// ```
   static void setPending<T>(String key, Future<T> future) {
-    _pending[key] = PendingRequestEntry<T>(
+    final entry = PendingRequestEntry<T>(
       future: future,
       timestamp: DateTime.now(),
     );
+    _pending[key] = entry;
 
     // 当 future 完成时自动清理（无论成功或失败）
-    future.whenComplete(() => _pending.remove(key));
+    future.whenComplete(() {
+      final current = _pending[key];
+      if (identical(current, entry)) {
+        _pending.remove(key);
+      }
+    });
   }
 
   /// 移除指定键的缓存

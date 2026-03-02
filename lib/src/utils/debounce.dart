@@ -133,11 +133,26 @@ class Debouncer<T> {
   /// }
   /// ```
   Future<T> call(Future<T> Function() action) {
-    // 取消之前的定时器
+    // 每次新调用都会重置 debounce 窗口，但不应该重置整个 maxWait 周期。
     _timer?.cancel();
-    _maxWaitTimer?.cancel();
 
-    // 取消上一次等待中的调用，避免 runAsync await 悬挂
+    // Leading 模式：首次调用立即执行
+    final shouldCallLeading = leading && !_hasLeadingCalled;
+    if (shouldCallLeading) {
+      _hasLeadingCalled = true;
+      _scheduleWindowTimer();
+      _startMaxWaitTimerIfNeeded();
+      return action();
+    }
+
+    if (!trailing) {
+      _scheduleWindowTimer();
+      _startMaxWaitTimerIfNeeded();
+      return Future.error(DebounceCancelledException());
+    }
+
+    // 取消上一次排队中的 trailing 调用，避免 runAsync await 悬挂。
+    // 注意：这里只取消“尚未执行”的 trailing future，不能影响已经开始执行的 leading future。
     final previousCompleter = _pendingCompleter;
     if (previousCompleter != null && !previousCompleter.isCompleted) {
       previousCompleter.completeError(DebounceCancelledException());
@@ -146,57 +161,70 @@ class Debouncer<T> {
     // 保存最后的 action
     _lastAction = action;
 
-    // Leading 模式：首次调用立即执行
-    final shouldCallLeading = leading && !_hasLeadingCalled;
-    if (shouldCallLeading) {
-      _hasLeadingCalled = true;
-      final completer = Completer<T>();
-      _pendingCompleter = completer;
-      _execute(action, completer);
-      _startTimers();
-      return completer.future;
-    }
-
     // 创建新的 Completer 等待执行
     final completer = Completer<T>();
     _pendingCompleter = completer;
-    _startTimers();
+    _scheduleWindowTimer();
+    _startMaxWaitTimerIfNeeded();
     return completer.future;
   }
 
-  /// 启动防抖定时器和最大等待定时器
-  void _startTimers() {
-    // 启动 trailing 定时器
-    if (trailing) {
-      _timer = Timer(duration, _invokeTrailing);
-    }
-
-    // 启动 maxWait 定时器（强制执行）
-    if (maxWait != null) {
-      _maxWaitTimer = Timer(maxWait!, _invokeTrailing);
-    }
+  /// 启动/重置 debounce 窗口定时器。
+  ///
+  /// - 若存在排队中的 trailing 调用，窗口结束时执行最后一次；
+  /// - 否则仅用于在 duration 后释放 leading 锁。
+  void _scheduleWindowTimer() {
+    _timer = Timer(duration, _handleWindowElapsed);
   }
 
-  /// 触发 trailing 执行
-  Future<void> _invokeTrailing() async {
-    // 清理定时器
+  void _startMaxWaitTimerIfNeeded() {
+    if (maxWait == null || _maxWaitTimer != null) return;
+    _maxWaitTimer = Timer(maxWait!, _handleMaxWaitElapsed);
+  }
+
+  void _handleWindowElapsed() {
+    if (trailing &&
+        _pendingCompleter != null &&
+        !_pendingCompleter!.isCompleted &&
+        _lastAction != null) {
+      _executePendingTrailing();
+      return;
+    }
+    _resetWindow();
+  }
+
+  void _handleMaxWaitElapsed() {
+    if (trailing &&
+        _pendingCompleter != null &&
+        !_pendingCompleter!.isCompleted &&
+        _lastAction != null) {
+      _executePendingTrailing();
+      return;
+    }
+    _resetWindow();
+  }
+
+  void _resetWindow() {
     _timer?.cancel();
     _timer = null;
     _maxWaitTimer?.cancel();
     _maxWaitTimer = null;
-
-    // 重置 leading 状态
     _hasLeadingCalled = false;
+  }
 
-    // 获取等待中的 completer 和 action
+  /// 执行当前排队中的 trailing 调用。
+  ///
+  /// 在真正 await action 前先重置窗口，确保 action 运行期间新的调用可以开启新周期，
+  /// 而不会被旧的 debounce 状态错误阻塞。
+  void _executePendingTrailing() {
     final completer = _pendingCompleter;
     final action = _lastAction;
     _pendingCompleter = null;
     _lastAction = null;
+    _resetWindow();
 
-    // 执行 action
     if (completer != null && action != null && !completer.isCompleted) {
-      await _execute(action, completer);
+      unawaited(_execute(action, completer));
     }
   }
 
@@ -253,7 +281,10 @@ class Debouncer<T> {
   ///   print('有待执行的调用');
   /// }
   /// ```
-  bool get isPending => _timer?.isActive ?? false;
+  bool get isPending =>
+      (_timer?.isActive ?? false) ||
+      (_maxWaitTimer?.isActive ?? false) ||
+      (_pendingCompleter != null && !_pendingCompleter!.isCompleted);
 }
 
 // ============================================================================

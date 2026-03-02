@@ -153,6 +153,9 @@ class RetryExecutor<T> {
   /// 是否已取消
   bool _isCancelled = false;
 
+  /// 内部取消信号，用于中断 retry backoff 等待。
+  Completer<void>? _cancelSignal;
+
   RetryExecutor({required this.config});
 
   /// 执行带重试逻辑的异步函数
@@ -201,6 +204,7 @@ class RetryExecutor<T> {
     // 保存取消令牌引用，用于内部检查
     _cancelToken = cancelToken;
     _isCancelled = false;
+    _cancelSignal = Completer<void>();
 
     // 尝试次数计数器（从 1 开始，1 表示第一次重试）
     int attempts = 0;
@@ -292,7 +296,15 @@ class RetryExecutor<T> {
       throw RetryCancelledException();
     }
 
-    await Future.delayed(duration);
+    await Future.any<void>([
+      Future.delayed(duration),
+      if (_cancelSignal != null) _cancelSignal!.future,
+      if (_cancelToken != null) _cancelToken!.whenCancel.then((_) {}),
+    ]);
+
+    if (_isCancelled || (_cancelToken?.isCancelled ?? false)) {
+      throw RetryCancelledException();
+    }
   }
 
   /// 取消当前重试
@@ -300,6 +312,10 @@ class RetryExecutor<T> {
   /// 调用后，正在进行的重试会在下一个检查点抛出 [RetryCancelledException]。
   void cancel() {
     _isCancelled = true;
+    final signal = _cancelSignal;
+    if (signal != null && !signal.isCompleted) {
+      signal.complete();
+    }
   }
 
   /// 释放资源

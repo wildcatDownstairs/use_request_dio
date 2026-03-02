@@ -1,3 +1,10 @@
+## 0.0.13
+
+- Fix: clear both `loading` and `loadingMore` on cancel, and make Hook/Riverpod consistently support no-params requests across auto-run, `refreshDeps`, polling, focus refresh, and reconnect refresh.
+- Fix: remove duplicate Riverpod auto requests when `refreshDeps` and `ready` replay overlap, and let `UseRequestBuilder` / `UseRequestMixin` render notifier state on the first frame instead of a synthetic empty state.
+- Fix: harden scheduler and cache utilities, including correct `Debouncer.maxWait`, non-cancelling leading debounce futures, correct `Throttler` behavior for `leading:false`, cancellable retry backoff, pending-cache overwrite safety, and `UseRequestOptions.copyWith()` explicit null clearing.
+- Test: add Hook, Riverpod, debounce, throttle, retry, cache, and options contract tests for the above edge cases.
+
 ## 0.0.12
 
 - Fix: hydrate fresh cache into Hook and Riverpod state on the first frame, so pages that remount can render cached data immediately instead of flashing default values before auto requests run.

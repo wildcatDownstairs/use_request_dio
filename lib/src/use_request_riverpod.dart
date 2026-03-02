@@ -19,6 +19,16 @@ import 'utils/cache_policy.dart';
 import 'utils/cancel_token.dart';
 import 'utils/dio_adapter.dart' show HttpRequestConfig;
 
+({bool isValid, TParams? params}) _resolveInvocableParams<TParams>(
+  Object? candidate,
+) {
+  try {
+    return (isValid: true, params: candidate as TParams);
+  } catch (_) {
+    return (isValid: false, params: null);
+  }
+}
+
 UseRequestState<TData, TParams> _buildInitialState<TData, TParams>(
   UseRequestOptions<TData, TParams> options,
 ) {
@@ -29,8 +39,9 @@ UseRequestState<TData, TParams> _buildInitialState<TData, TParams>(
   // 创建 notifier 时就先把缓存回填进 state，避免页面首次 build 先渲染默认值。
   if (cacheKeyBuilder != null &&
       (options.defaultParams != null || !options.manual)) {
-    try {
-      final params = options.defaultParams as TParams;
+    final resolved = _resolveInvocableParams<TParams>(options.defaultParams);
+    if (resolved.isValid) {
+      final params = resolved.params as TParams;
       final cacheKey = cacheKeyBuilder(params);
       if (cacheKey.isNotEmpty) {
         final coordinator = CacheCoordinator<TData>(
@@ -40,8 +51,6 @@ UseRequestState<TData, TParams> _buildInitialState<TData, TParams>(
         );
         initialData = coordinator.getFresh();
       }
-    } catch (_) {
-      initialData = null;
     }
   }
 
@@ -77,24 +86,47 @@ class UseRequestNotifier<TData, TParams>
   String _getKey(TParams params) =>
       options.fetchKey?.call(params) ?? '_default';
 
+  bool _hasLastInvocationForKey(String key) =>
+      _lastParamsByKey.containsKey(key);
+
+  bool _runIfInvocable(Object? candidate) {
+    final resolved = _resolveInvocableParams<TParams>(candidate);
+    if (!resolved.isValid) return false;
+    run(resolved.params as TParams);
+    return true;
+  }
+
+  /// 对外暴露一个只读快照，避免 UI 层直接访问 StateNotifier 的受保护成员 `state`。
+  ///
+  /// 这样 Builder / mixin 仍然能在首帧同步拿到当前状态，但不会踩到 analyzer
+  /// 对 protected 成员的可见性约束。
+  UseRequestState<TData, TParams> get currentState => state;
+
   UseRequestNotifier({required this.service, required this.options})
     : super(_buildInitialState<TData, TParams>(options)) {
     _ready = options.ready;
-    _lastRefreshDeps = null;
+    _lastRefreshDeps = options.refreshDeps == null
+        ? null
+        : List<Object?>.from(options.refreshDeps!);
+    _lastRefreshDepsAction = options.refreshDepsAction;
     if (options.debounceInterval != null && options.throttleInterval != null) {
       throw ArgumentError('debounceInterval 与 throttleInterval 不能同时设置，请二选一');
     }
 
-    if (options.defaultParams != null) {
-      final key = _getKey(options.defaultParams as TParams);
-      _lastParamsByKey[key] = options.defaultParams;
+    final initialParams = _resolveInvocableParams<TParams>(
+      options.defaultParams,
+    );
+    if (initialParams.isValid) {
+      final params = initialParams.params as TParams;
+      final key = _getKey(params);
+      _lastParamsByKey[key] = params;
       _lastKey = key;
     }
     _initializeUtilities();
 
     // 非手动模式自动请求
-    if (!options.manual && options.defaultParams != null && _ready) {
-      run(options.defaultParams as TParams);
+    if (!options.manual && _ready) {
+      _runIfInvocable(options.defaultParams);
     }
   }
 
@@ -126,7 +158,7 @@ class UseRequestNotifier<TData, TParams>
         action: () {
           if (_lastKey != null) {
             final params = _lastParamsByKey[_lastKey!];
-            if (params != null) {
+            if (_hasLastInvocationForKey(_lastKey!)) {
               return _fetchData(_lastKey!, params as TParams);
             }
           }
@@ -141,7 +173,7 @@ class UseRequestNotifier<TData, TParams>
               _pollingRetryTimer = Timer(options.pollingRetryInterval!, () {
                 if (!_ready || _pollingController == null) return;
                 final hasParams =
-                    _lastKey != null && _lastParamsByKey[_lastKey!] != null;
+                    _lastKey != null && _hasLastInvocationForKey(_lastKey!);
                 final hasEverRun = state.requestCount > 0;
                 final shouldAutoStart = !options.manual;
                 final canPoll = hasParams && (shouldAutoStart || hasEverRun);
@@ -160,7 +192,7 @@ class UseRequestNotifier<TData, TParams>
 
       if (!options.manual &&
           _lastKey != null &&
-          _lastParamsByKey[_lastKey!] != null &&
+          _hasLastInvocationForKey(_lastKey!) &&
           _ready) {
         _pollingController!.start();
       }
@@ -172,7 +204,7 @@ class UseRequestNotifier<TData, TParams>
       _focusManager = AppFocusManager(
         onFocus: () {
           if (_lastKey != null &&
-              _lastParamsByKey[_lastKey!] != null &&
+              _hasLastInvocationForKey(_lastKey!) &&
               _ready) {
             if (options.refreshOnFocus) {
               refresh();
@@ -191,11 +223,6 @@ class UseRequestNotifier<TData, TParams>
       _focusManager!.start();
     }
 
-    // options.refreshDeps 初始触发（静态）
-    if (options.refreshDeps != null) {
-      refreshDeps(options.refreshDeps!, action: options.refreshDepsAction);
-    }
-
     // refreshOnReconnect：监听外部 reconnectStream
     if (options.refreshOnReconnect && options.reconnectStream != null) {
       _reconnectSub?.cancel();
@@ -203,7 +230,7 @@ class UseRequestNotifier<TData, TParams>
         if (online &&
             _ready &&
             _lastKey != null &&
-            _lastParamsByKey[_lastKey!] != null) {
+            _hasLastInvocationForKey(_lastKey!)) {
           refresh();
         }
       });
@@ -553,10 +580,10 @@ class UseRequestNotifier<TData, TParams>
     if (_lastKey == null) {
       throw StateError('No previous key to load more with');
     }
-    final lastParams = _lastParamsByKey[_lastKey!];
-    if (lastParams == null) {
+    if (!_lastParamsByKey.containsKey(_lastKey!)) {
       throw StateError('No previous params to load more with');
     }
+    final lastParams = _lastParamsByKey[_lastKey!];
     if (options.loadMoreParams == null) {
       throw StateError('UseRequestOptions.loadMoreParams 未提供，无法加载更多');
     }
@@ -588,7 +615,7 @@ class UseRequestNotifier<TData, TParams>
     }
     _loadingDelayController?.endLoading();
     if (mounted) {
-      state = state.copyWith(loading: false);
+      state = state.copyWith(loading: false, loadingMore: false);
     }
   }
 
@@ -616,8 +643,10 @@ class UseRequestNotifier<TData, TParams>
     _ready = ready;
 
     if (_ready) {
+      var replayedPendingWork = false;
       if (_pendingRefreshDeps && _lastRefreshDeps != null) {
         _pendingRefreshDeps = false;
+        replayedPendingWork = true;
         final action = _lastRefreshDepsAction;
         if (action != null) {
           action();
@@ -626,20 +655,20 @@ class UseRequestNotifier<TData, TParams>
               ? _lastParamsByKey[_lastKey!]
               : options.defaultParams;
           // 与 Hook 版保持一致：即使 params 为 null（无参请求），也应触发 run。
-          run(params as TParams);
+          _runIfInvocable(params);
         }
       }
-      if (!options.manual) {
+      if (!replayedPendingWork && !options.manual) {
         final params = _lastKey != null
             ? _lastParamsByKey[_lastKey!]
             : options.defaultParams;
-        run(params as TParams);
+        _runIfInvocable(params);
       }
 
       if (options.pollingInterval != null &&
           _pollingController != null &&
           _lastKey != null &&
-          _lastParamsByKey[_lastKey!] != null) {
+          _hasLastInvocationForKey(_lastKey!)) {
         _pollingController!.start();
       }
     } else {
@@ -651,7 +680,7 @@ class UseRequestNotifier<TData, TParams>
   void setPollingVisible(bool visible) {
     if (options.pollingInterval == null || _pollingController == null) return;
     if (visible) {
-      if (_ready && _lastKey != null && _lastParamsByKey[_lastKey!] != null) {
+      if (_ready && _lastKey != null && _hasLastInvocationForKey(_lastKey!)) {
         _pollingController!.resume();
       }
     } else {
@@ -679,7 +708,7 @@ class UseRequestNotifier<TData, TParams>
           ? _lastParamsByKey[_lastKey!]
           : options.defaultParams;
       // refreshDeps 语义：依赖变化时触发一次刷新，无参请求也应生效。
-      run(params as TParams);
+      _runIfInvocable(params);
       _pendingRefreshDeps = false;
     } else {
       _pendingRefreshDeps = true;
@@ -743,7 +772,7 @@ mixin UseRequestMixin<TData, TParams> {
       service: service,
       options: options ?? const UseRequestOptions(),
     );
-    _state = UseRequestState<TData, TParams>();
+    _state = _notifier.currentState;
     _removeListener = _notifier.addListener((s) {
       _state = s;
     });
@@ -814,17 +843,33 @@ class _UseRequestBuilderState<TData, TParams>
   @override
   void initState() {
     super.initState();
+    _bindNotifier();
+  }
+
+  void _bindNotifier() {
     _notifier = UseRequestNotifier<TData, TParams>(
       service: widget.service,
       options: widget.options ?? const UseRequestOptions(),
     );
-    _state = UseRequestState<TData, TParams>();
+    _state = _notifier.currentState;
     _removeListener = _notifier.addListener(_onStateChange);
   }
 
   void _onStateChange(UseRequestState<TData, TParams> state) {
     if (mounted) {
       _state = state;
+      setState(() {});
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant UseRequestBuilder<TData, TParams> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.service != widget.service ||
+        oldWidget.options != widget.options) {
+      _removeListener();
+      _notifier.dispose();
+      _bindNotifier();
       setState(() {});
     }
   }
