@@ -1,3 +1,7 @@
+## 0.0.12
+
+- Fix: hydrate fresh cache into Hook and Riverpod state on the first frame, so pages that remount can render cached data immediately instead of flashing default values before auto requests run.
+
 ## 0.0.11
 
 - Fix: pending cache subscribers now receive the in-flight result in both Hook and Riverpod implementations, instead of reusing the Future without updating local state.
