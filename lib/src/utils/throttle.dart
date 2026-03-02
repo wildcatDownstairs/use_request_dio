@@ -102,6 +102,9 @@ class Throttler<T> {
   /// Trailing 定时器
   Timer? _trailingTimer;
 
+  /// 最大等待定时器
+  Timer? _maxWaitTimer;
+
   /// 待执行的 action
   Future<T> Function()? _pendingAction;
 
@@ -141,12 +144,29 @@ class Throttler<T> {
     final now = DateTime.now();
     final useTrailing = trailing ?? this.trailing;
 
-    // 首次调用记录时间
-    _firstCallTime ??= now;
+    final shouldStartNewCycle =
+        _firstCallTime == null ||
+        (_lastExecutionTime != null &&
+            now.difference(_lastExecutionTime!) >= duration);
+    if (shouldStartNewCycle) {
+      _firstCallTime = now;
+      _maxWaitTimer?.cancel();
+      _maxWaitTimer = null;
+
+      // `leading: false` 的新窗口在真正执行前不应该继承上一个窗口的执行时间。
+      if (!leading) {
+        _lastExecutionTime = null;
+      }
+    }
+
+    // 首次进入窗口时启动 maxWait，后续同一窗口内的连续调用不重置它。
+    if (maxWait != null && _maxWaitTimer == null) {
+      _maxWaitTimer = Timer(maxWait!, _executeTrailing);
+    }
 
     // 计算距离上次执行的时间
     final elapsedSinceLast = _lastExecutionTime == null
-        ? duration // 首次调用，视为已过节流间隔
+        ? now.difference(_firstCallTime!)
         : now.difference(_lastExecutionTime!);
 
     // 计算距离首次调用的时间
@@ -195,6 +215,11 @@ class Throttler<T> {
 
   /// 执行 trailing 调用
   void _executeTrailing() async {
+    _trailingTimer?.cancel();
+    _trailingTimer = null;
+    _maxWaitTimer?.cancel();
+    _maxWaitTimer = null;
+
     final action = _pendingAction;
     final completer = _pendingCompleter;
 
@@ -223,6 +248,8 @@ class Throttler<T> {
   void cancel() {
     _trailingTimer?.cancel();
     _trailingTimer = null;
+    _maxWaitTimer?.cancel();
+    _maxWaitTimer = null;
     _pendingAction = null;
 
     if (_pendingCompleter != null && !_pendingCompleter!.isCompleted) {

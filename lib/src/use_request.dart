@@ -100,6 +100,18 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     lastKeyRef.value = key;
   }
 
+  bool canInvokeWithParams(Object? params) {
+    try {
+      params as TParams;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool hasLastInvocationForKey(String key) =>
+      lastParamsMapRef.value.containsKey(key);
+
   // 上一次 refreshDeps（用于依赖刷新比较）
   final lastRefreshDepsRef = useRef<List<Object?>?>(
     opts.refreshDeps == null ? null : List<Object?>.from(opts.refreshDeps!),
@@ -512,6 +524,18 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     unawaited(runAsync(params).then<void>((_) {}, onError: (_) {}));
   }
 
+  /// 只有在参数真的能安全转换成 TParams 时才触发请求。
+  ///
+  /// 这里单独包一层是为了统一处理“无参请求”和“非空参数尚未就绪”两种情况：
+  /// - 对 `dynamic/Object?/nullable` 参数，请求应该正常发起；
+  /// - 对 `int/String` 这类非空参数，如果当前拿到的是 `null`，则应安静跳过，
+  ///   而不是在自动请求或 refreshDeps 阶段直接抛出运行时类型错误。
+  bool runIfInvocable(Object? params) {
+    if (!canInvokeWithParams(params)) return false;
+    run(params as TParams);
+    return true;
+  }
+
   // 使用上一次参数刷新（异步）
   Future<TData> refreshAsync() {
     final lastKey = lastKeyRef.value;
@@ -537,10 +561,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     if (lastKey == null) {
       throw StateError('No previous key to load more with');
     }
-    final lastParams = lastParamsMapRef.value[lastKey];
-    if (lastParams == null) {
+    final paramsMap = lastParamsMapRef.value;
+    if (!paramsMap.containsKey(lastKey)) {
       throw StateError('No previous params to load more with');
     }
+    final lastParams = paramsMap[lastKey];
     if (opts.loadMoreParams == null) {
       throw StateError('UseRequestOptions.loadMoreParams 未提供，无法加载更多');
     }
@@ -572,7 +597,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       cancelTokenMapRef.value[lastKey]?.cancel('Request cancelled by user');
     }
     loadingDelayControllerRef.value?.endLoading();
-    updateState((s) => s.copyWith(loading: false));
+    updateState((s) => s.copyWith(loading: false, loadingMore: false));
   }
 
   void pausePolling() {
@@ -583,8 +608,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
   void resumePolling() {
     final lastKey = lastKeyRef.value;
-    final hasParams =
-        lastKey != null && lastParamsMapRef.value[lastKey] != null;
+    final hasParams = lastKey != null && hasLastInvocationForKey(lastKey);
     if (pollingControllerRef.value != null && hasParams && opts.ready) {
       pollingControllerRef.value!.resume();
       pollingActiveRef.value = true;
@@ -625,8 +649,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
             (lastKeyRef.value != null
                 ? lastParamsMapRef.value[lastKeyRef.value!]
                 : null);
-        run(params as TParams);
         pendingRefreshDepsRef.value = false;
+        runIfInvocable(params);
       } else {
         pendingRefreshDepsRef.value = true;
       }
@@ -640,7 +664,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
             (lastKeyRef.value != null
                 ? lastParamsMapRef.value[lastKeyRef.value!]
                 : null);
-        run(params as TParams);
+        runIfInvocable(params);
       }
     }
 
@@ -666,8 +690,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         action: () {
           final key = lastKeyRef.value;
           final params = key != null ? lastParamsMapRef.value[key] : null;
-          if (params != null && key != null) {
-            return fetchData(key, params);
+          if (key != null && hasLastInvocationForKey(key)) {
+            return fetchData(key, params as TParams);
           }
           throw StateError('No params for polling');
         },
@@ -688,7 +712,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
                 final lastKey = lastKeyRef.value;
                 final hasParams =
-                    lastKey != null && lastParamsMapRef.value[lastKey] != null;
+                    lastKey != null && hasLastInvocationForKey(lastKey);
                 final hasEverRun = stateNotifier.value.requestCount > 0;
                 final shouldAutoStart = !opts.manual;
                 final canPoll =
@@ -739,8 +763,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       pollingRetryTimerRef.value = null;
 
       final lastKey = lastKeyRef.value;
-      final hasParams =
-          lastKey != null && lastParamsMapRef.value[lastKey] != null;
+      final hasParams = lastKey != null && hasLastInvocationForKey(lastKey);
       final hasEverRun = stateNotifier.value.requestCount > 0;
       final shouldAutoStart = !opts.manual;
       final canPoll =
@@ -779,9 +802,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         focusManagerRef.value = AppFocusManager(
           onFocus: () {
             final key = lastKeyRef.value;
-            if (opts.ready &&
-                key != null &&
-                lastParamsMapRef.value[key] != null) {
+            if (opts.ready && key != null && hasLastInvocationForKey(key)) {
               if (opts.refreshOnFocus) {
                 refresh();
               }
@@ -818,7 +839,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       final sub = opts.reconnectStream!.listen((online) {
         if (online && opts.ready) {
           final key = lastKeyRef.value;
-          if (key != null && lastParamsMapRef.value[key] != null) {
+          if (key != null && hasLastInvocationForKey(key)) {
             refresh();
           }
         }
@@ -831,7 +852,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   // 非手动模式下，挂载后自动请求一次
   useEffect(() {
     if (!opts.manual && opts.ready) {
-      run(opts.defaultParams as TParams);
+      runIfInvocable(opts.defaultParams);
     }
     return null;
   }, [opts.manual, opts.defaultParams, opts.ready]);
