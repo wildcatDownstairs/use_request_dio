@@ -15,6 +15,32 @@ import 'utils/cache.dart';
 import 'utils/cache_policy.dart';
 import 'utils/dio_adapter.dart' show HttpRequestConfig;
 
+TData? _resolveInitialCachedData<TData, TParams>(
+  UseRequestOptions<TData, TParams> options,
+) {
+  final cacheKeyBuilder = options.cacheKey;
+  if (cacheKeyBuilder == null) return null;
+
+  // auto 请求允许“无参服务”把 null 当作默认参数参与 cacheKey 计算；
+  // 对于必须显式传参的请求，这里的 cast 会失败并安全跳过缓存预填充，
+  // 避免在首帧阶段因为类型不匹配直接抛异常。
+  if (options.defaultParams == null && options.manual) return null;
+
+  try {
+    final params = options.defaultParams as TParams;
+    final cacheKey = cacheKeyBuilder(params);
+    if (cacheKey.isEmpty) return null;
+    final coordinator = CacheCoordinator<TData>(
+      cacheKey: cacheKey,
+      cacheTime: options.cacheTime,
+      staleTime: options.staleTime,
+    );
+    return coordinator.getFresh();
+  } catch (_) {
+    return null;
+  }
+}
+
 /// useRequest Hook 实现
 /// 借鉴 ahooks 的数据请求能力并结合 Dart/Flutter 特性
 UseRequestResult<TData, TParams> useRequest<TData, TParams>(
@@ -29,9 +55,14 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
   String getKey(TParams params) => opts.fetchKey?.call(params) ?? '_default';
 
+  final initialCachedData = _resolveInitialCachedData<TData, TParams>(opts);
+
   // 使用 Hook 的状态管理（ValueNotifier）保证组件响应式更新
   final stateNotifier = useState(
-    UseRequestState<TData, TParams>(params: opts.defaultParams),
+    UseRequestState<TData, TParams>(
+      params: opts.defaultParams,
+      data: initialCachedData,
+    ),
   );
 
   // 请求取消令牌（按 key）

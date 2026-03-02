@@ -19,6 +19,38 @@ import 'utils/cache_policy.dart';
 import 'utils/cancel_token.dart';
 import 'utils/dio_adapter.dart' show HttpRequestConfig;
 
+UseRequestState<TData, TParams> _buildInitialState<TData, TParams>(
+  UseRequestOptions<TData, TParams> options,
+) {
+  final cacheKeyBuilder = options.cacheKey;
+  TData? initialData;
+
+  // Riverpod 版和 Hook 版保持一致：如果默认参数对应的缓存已经存在，
+  // 创建 notifier 时就先把缓存回填进 state，避免页面首次 build 先渲染默认值。
+  if (cacheKeyBuilder != null &&
+      (options.defaultParams != null || !options.manual)) {
+    try {
+      final params = options.defaultParams as TParams;
+      final cacheKey = cacheKeyBuilder(params);
+      if (cacheKey.isNotEmpty) {
+        final coordinator = CacheCoordinator<TData>(
+          cacheKey: cacheKey,
+          cacheTime: options.cacheTime,
+          staleTime: options.staleTime,
+        );
+        initialData = coordinator.getFresh();
+      }
+    } catch (_) {
+      initialData = null;
+    }
+  }
+
+  return UseRequestState<TData, TParams>(
+    params: options.defaultParams,
+    data: initialData,
+  );
+}
+
 /// 请求状态管理的 StateNotifier 实现
 class UseRequestNotifier<TData, TParams>
     extends StateNotifier<UseRequestState<TData, TParams>> {
@@ -46,7 +78,7 @@ class UseRequestNotifier<TData, TParams>
       options.fetchKey?.call(params) ?? '_default';
 
   UseRequestNotifier({required this.service, required this.options})
-    : super(UseRequestState<TData, TParams>(params: options.defaultParams)) {
+    : super(_buildInitialState<TData, TParams>(options)) {
     _ready = options.ready;
     _lastRefreshDeps = null;
     if (options.debounceInterval != null && options.throttleInterval != null) {

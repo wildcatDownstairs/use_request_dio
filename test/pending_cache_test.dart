@@ -26,7 +26,31 @@ class _PendingHookProbe extends HookWidget {
   }
 }
 
+class _CachedHookProbe extends HookWidget {
+  const _CachedHookProbe({required this.service});
+
+  final Future<String> Function(int) service;
+
+  @override
+  Widget build(BuildContext context) {
+    final request = useRequest<String, int>(
+      service,
+      options: UseRequestOptions(
+        defaultParams: 1,
+        cacheKey: (p) => 'shared-$p',
+        staleTime: const Duration(minutes: 1),
+        cacheTime: const Duration(minutes: 5),
+      ),
+    );
+
+    final text = '${request.loading}|${request.data ?? 'null'}';
+    return Directionality(textDirection: TextDirection.ltr, child: Text(text));
+  }
+}
+
 void main() {
+  setUp(clearAllCache);
+
   testWidgets(
     'hook subscriber receives pending cache result after previous widget disposes',
     (tester) async {
@@ -90,5 +114,46 @@ void main() {
 
     notifierA.dispose();
     notifierB.dispose();
+  });
+
+  testWidgets('hook reads fresh cache on first frame', (tester) async {
+    setCache<String>('shared-1', 'cached');
+    var callCount = 0;
+
+    Future<String> service(int p) async {
+      callCount += 1;
+      return 'network';
+    }
+
+    await tester.pumpWidget(_CachedHookProbe(service: service));
+
+    expect(find.text('false|cached'), findsOneWidget);
+    expect(callCount, 0);
+  });
+
+  test('riverpod reads fresh cache during initialization', () {
+    setCache<String>('shared-1', 'cached');
+    var callCount = 0;
+
+    Future<String> service(int p) async {
+      callCount += 1;
+      return 'network';
+    }
+
+    final notifier = UseRequestNotifier<String, int>(
+      service: service,
+      options: UseRequestOptions(
+        defaultParams: 1,
+        cacheKey: (p) => 'shared-$p',
+        staleTime: const Duration(minutes: 1),
+        cacheTime: const Duration(minutes: 5),
+      ),
+    );
+
+    expect(notifier.state.data, 'cached');
+    expect(notifier.state.loading, false);
+    expect(callCount, 0);
+
+    notifier.dispose();
   });
 }
