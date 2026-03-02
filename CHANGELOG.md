@@ -1,3 +1,7 @@
+## 0.0.11
+
+- Fix: pending cache subscribers now receive the in-flight result in both Hook and Riverpod implementations, instead of reusing the Future without updating local state.
+
 ## 0.0.10
 
 - Fix: `refreshDeps` now triggers auto refresh even when last/default params is `null` (no-params service), aligning with ahooks.

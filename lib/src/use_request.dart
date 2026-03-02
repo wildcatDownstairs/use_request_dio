@@ -164,6 +164,84 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     }
   }
 
+  Future<TData> bindPendingRequest(
+    Future<TData> pending,
+    String key,
+    TParams params,
+    int currentRequestCount, {
+    bool isLoadMore = false,
+  }) async {
+    if (isLoadMore) {
+      updateState(
+        (s) => s.copyWith(
+          loadingMore: true,
+          params: params,
+          clearError: true,
+          requestCount: currentRequestCount,
+        ),
+      );
+    } else {
+      setLoading(true);
+      updateState(
+        (s) => s.copyWith(
+          params: params,
+          clearError: true,
+          requestCount: currentRequestCount,
+        ),
+      );
+    }
+
+    try {
+      final result = await pending;
+      final latestCount = requestCountMapRef.value[key] ?? currentRequestCount;
+      final isStaleKey = lastKeyRef.value != key;
+      final cancelToken = cancelTokenMapRef.value[key];
+      if (currentRequestCount != latestCount ||
+          isStaleKey ||
+          (cancelToken?.isCancelled ?? false)) {
+        return result;
+      }
+
+      final mergedResult = isLoadMore && opts.dataMerger != null
+          ? opts.dataMerger!(stateNotifier.value.data, result)
+          : result;
+
+      loadingDelayControllerRef.value?.endLoading();
+      updateState(
+        (s) => s.copyWith(
+          loading: false,
+          loadingMore: false,
+          data: mergedResult,
+          clearError: true,
+          hasMore:
+              opts.hasMore?.call(mergedResult) ?? stateNotifier.value.hasMore,
+        ),
+      );
+
+      return mergedResult;
+    } catch (e) {
+      final latestCount = requestCountMapRef.value[key] ?? currentRequestCount;
+      final isStaleKey = lastKeyRef.value != key;
+      final cancelToken = cancelTokenMapRef.value[key];
+      final isStale = currentRequestCount != latestCount || isStaleKey;
+      final isCancellation =
+          (cancelToken?.isCancelled ?? false) ||
+          e is RequestSupersededException ||
+          e is RequestCancelledException ||
+          e is RetryCancelledException ||
+          (e is DioException && e.type == DioExceptionType.cancel);
+
+      if (!isStale && !isCancellation) {
+        loadingDelayControllerRef.value?.endLoading();
+        updateState(
+          (s) => s.copyWith(loading: false, loadingMore: false, error: e),
+        );
+      }
+
+      return Future.error(e);
+    }
+  }
+
   // 核心请求函数
   Future<TData> fetchData(
     String key,
@@ -212,7 +290,13 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       // 若有进行中的请求，直接复用
       final pending = getPendingCache<TData>(cacheKey);
       if (pending != null) {
-        return pending;
+        return bindPendingRequest(
+          pending,
+          key,
+          params,
+          currentRequestCount,
+          isLoadMore: isLoadMore,
+        );
       }
 
       final coordinator = CacheCoordinator<TData>(

@@ -198,6 +198,81 @@ class UseRequestNotifier<TData, TParams>
     }
   }
 
+  Future<TData> _bindPendingRequest(
+    Future<TData> pending,
+    String key,
+    TParams params,
+    int currentRequestCount, {
+    bool isLoadMore = false,
+  }) async {
+    if (isLoadMore) {
+      if (mounted) {
+        state = state.copyWith(
+          loadingMore: true,
+          params: params,
+          clearError: true,
+          requestCount: currentRequestCount,
+        );
+      }
+    } else {
+      _setLoading(true);
+      if (mounted) {
+        state = state.copyWith(
+          params: params,
+          clearError: true,
+          requestCount: currentRequestCount,
+        );
+      }
+    }
+
+    try {
+      final result = await pending;
+      final latestCount = _requestCounts[key] ?? currentRequestCount;
+      final isStaleKey = _lastKey != key;
+      final cancelToken = _cancelTokens[key];
+      if (currentRequestCount != latestCount ||
+          isStaleKey ||
+          (cancelToken?.isCancelled ?? false)) {
+        return result;
+      }
+
+      final mergedResult = isLoadMore && options.dataMerger != null
+          ? options.dataMerger!(state.data, result)
+          : result;
+
+      _loadingDelayController?.endLoading();
+      if (mounted) {
+        state = state.copyWith(
+          loading: false,
+          loadingMore: false,
+          data: mergedResult,
+          clearError: true,
+          hasMore: options.hasMore?.call(mergedResult) ?? state.hasMore,
+        );
+      }
+
+      return mergedResult;
+    } catch (e) {
+      final latestCount = _requestCounts[key] ?? currentRequestCount;
+      final isStaleKey = _lastKey != key;
+      final cancelToken = _cancelTokens[key];
+      final isStale = currentRequestCount != latestCount || isStaleKey;
+      final isCancellation =
+          (cancelToken?.isCancelled ?? false) ||
+          e is RequestSupersededException ||
+          e is RequestCancelledException ||
+          e is RetryCancelledException ||
+          (e is DioException && e.type == DioExceptionType.cancel);
+
+      if (!isStale && !isCancellation && mounted) {
+        _loadingDelayController?.endLoading();
+        state = state.copyWith(loading: false, loadingMore: false, error: e);
+      }
+
+      return Future.error(e);
+    }
+  }
+
   Future<TData> _fetchData(
     String key,
     TParams params, {
@@ -240,7 +315,13 @@ class UseRequestNotifier<TData, TParams>
     if (cacheKey != null && cacheKey.isNotEmpty) {
       final pending = getPendingCache<TData>(cacheKey);
       if (pending != null) {
-        return pending;
+        return _bindPendingRequest(
+          pending,
+          key,
+          params,
+          currentRequestCount,
+          isLoadMore: isLoadMore,
+        );
       }
 
       final coordinator = CacheCoordinator<TData>(
