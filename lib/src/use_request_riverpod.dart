@@ -393,11 +393,13 @@ class UseRequestNotifier<TData, TParams>
     // 注意：loadMore 场景下不会触发 onBefore，因为 loadMore 是追加数据操作，
     // 而非全新请求。如需在 loadMore 前执行逻辑，请在调用 loadMore() 前自行处理。
     if (!isLoadMore) {
-      options.onBefore?.call(params);
+      try {
+        options.onBefore?.call(params);
+      } catch (_) {}
     }
 
     // 通知全局观察者
-    UseRequestObserver.instance?.onRequest(key, params);
+    notifyRequestObserverRequest(key, params);
 
     // 读取缓存
     TData? cachedData;
@@ -421,9 +423,7 @@ class UseRequestNotifier<TData, TParams>
       );
       cachedData = coordinator.getFresh();
       if (cachedData != null) {
-        UseRequestObserver.instance?.onCacheHit(
-          cacheKey, coordinator.shouldRevalidate(),
-        );
+        notifyRequestObserverCacheHit(cacheKey, coordinator.shouldRevalidate());
         if (mounted) {
           state = state.copyWith(
             loading: false,
@@ -451,7 +451,8 @@ class UseRequestNotifier<TData, TParams>
     } else {
       _setLoading(true);
       // keepPreviousData=false（默认）且参数变化时清除旧数据
-      final shouldClearData = !options.keepPreviousData &&
+      final shouldClearData =
+          !options.keepPreviousData &&
           cachedData == null &&
           state.params != params;
       if (mounted) {
@@ -522,7 +523,7 @@ class UseRequestNotifier<TData, TParams>
       } catch (_) {
         // 回调异常不应中断请求流程
       }
-      UseRequestObserver.instance?.onSuccess(key, mergedResult, params);
+      notifyRequestObserverSuccess(key, mergedResult, params);
 
       // 写入缓存
       if (cacheKey != null && cacheKey.isNotEmpty) {
@@ -545,7 +546,7 @@ class UseRequestNotifier<TData, TParams>
       } catch (_) {
         // 回调异常不应中断请求流程
       }
-      UseRequestObserver.instance?.onFinally(key, params);
+      notifyRequestObserverFinally(key, params);
 
       return mergedResult;
     } catch (e) {
@@ -575,7 +576,7 @@ class UseRequestNotifier<TData, TParams>
       } catch (_) {
         // 回调异常不应中断请求流程
       }
-      UseRequestObserver.instance?.onError(key, e, params);
+      notifyRequestObserverError(key, e, params);
 
       // 完成回调
       try {
@@ -583,7 +584,7 @@ class UseRequestNotifier<TData, TParams>
       } catch (_) {
         // 回调异常不应中断请求流程
       }
-      UseRequestObserver.instance?.onFinally(key, params);
+      notifyRequestObserverFinally(key, params);
 
       if (cacheKey != null && cacheKey.isNotEmpty) {
         clearCacheEntry(cacheKey);
@@ -651,9 +652,7 @@ class UseRequestNotifier<TData, TParams>
   Future<TData> loadMoreAsync() {
     // 如果 hasMore 明确为 false，不再发起请求
     if (state.hasMore == false) {
-      return Future.error(
-        StateError('没有更多数据可加载（hasMore 为 false）'),
-      );
+      return Future.error(StateError('没有更多数据可加载（hasMore 为 false）'));
     }
     if (_lastKey == null) {
       throw StateError('No previous key to load more with');
@@ -689,11 +688,15 @@ class UseRequestNotifier<TData, TParams>
         final lastParams = _lastParamsByKey[_lastKey!];
         if (lastParams != null && options.cacheKey != null) {
           final ck = options.cacheKey!(lastParams as TParams);
-          if (ck.isNotEmpty && newData != null) {
-            setCache<TData>(ck, newData);
+          if (ck.isNotEmpty) {
+            if (newData != null) {
+              setCache<TData>(ck, newData);
+            } else {
+              clearCacheEntry(ck);
+            }
           }
         }
-        UseRequestObserver.instance?.onMutate(_lastKey!, oldData, newData);
+        notifyRequestObserverMutate(_lastKey!, oldData, newData);
       }
     }
   }
@@ -702,7 +705,7 @@ class UseRequestNotifier<TData, TParams>
   void cancel() {
     for (final entry in _cancelTokens.entries) {
       entry.value?.cancel('Request cancelled by user');
-      UseRequestObserver.instance?.onCancel(entry.key);
+      notifyRequestObserverCancel(entry.key);
     }
     _loadingDelayController?.endLoading();
     if (mounted) {
@@ -851,8 +854,7 @@ class UseRequestNotifier<TData, TParams>
     }
 
     // — 轮询参数变化 —
-    final pollingChanged =
-        old.pollingInterval != newOptions.pollingInterval;
+    final pollingChanged = old.pollingInterval != newOptions.pollingInterval;
     if (pollingChanged) {
       final wasRunning = _pollingController?.isRunning ?? false;
       _pollingRetryTimer?.cancel();
@@ -883,15 +885,13 @@ class UseRequestNotifier<TData, TParams>
               _pollingController?.pause();
               _pollingRetryTimer?.cancel();
               if (options.pollingRetryInterval != null) {
-                _pollingRetryTimer =
-                    Timer(options.pollingRetryInterval!, () {
+                _pollingRetryTimer = Timer(options.pollingRetryInterval!, () {
                   if (!_ready || _pollingController == null) return;
                   final hasParams =
                       _lastKey != null && _hasLastInvocationForKey(_lastKey!);
                   final hasEverRun = state.requestCount > 0;
                   final shouldAutoStart = !options.manual;
-                  final canPoll =
-                      hasParams && (shouldAutoStart || hasEverRun);
+                  final canPoll = hasParams && (shouldAutoStart || hasEverRun);
                   if (canPoll) {
                     if (!_pollingController!.isRunning) {
                       _pollingController!.start();
@@ -988,6 +988,7 @@ mixin UseRequestMixin<TData, TParams> {
     required WidgetRef ref,
     required Service<TData, TParams> service,
     UseRequestOptions<TData, TParams>? options,
+
     /// 状态变化时的回调，通常传入 `() => setState(() {})` 以触发 UI 重建。
     /// 若不传则 UI 不会自动响应状态变化。
     VoidCallback? onStateChange,
@@ -1109,19 +1110,17 @@ class _UseRequestBuilderState<TData, TParams>
     super.didUpdateWidget(oldWidget);
     // 使用 serviceKey 判断 service 是否需要重建（避免闭包引用陷阱），
     // 若未提供 serviceKey 则不对 service 变化做判断。
-    final serviceChanged = widget.serviceKey != null &&
-        oldWidget.serviceKey != widget.serviceKey;
+    final serviceChanged =
+        widget.serviceKey != null && oldWidget.serviceKey != widget.serviceKey;
     if (serviceChanged) {
       // service 变化：必须销毁重建
       _removeListener();
       _notifier.dispose();
       _bindNotifier();
       setState(() {});
-    } else if (!identical(oldWidget.options, widget.options)) {
+    } else if (oldWidget.options != widget.options) {
       // 仅 options 变化：动态更新工具参数，保留请求状态
-      _notifier.updateOptions(
-        widget.options ?? const UseRequestOptions(),
-      );
+      _notifier.updateOptions(widget.options ?? const UseRequestOptions());
     }
   }
 
