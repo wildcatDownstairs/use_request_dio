@@ -1,5 +1,11 @@
 > 维护约定：自本版本起，更新日志统一使用简体中文。
 
+## 0.3.4
+
+- 修复：解决轮询在 `pausePollingOnError` 后进入暂停态时无法被 `pollingRetryInterval` 正确恢复的问题（Hook 与 Riverpod 两条路径均已修复）。
+- 测试：新增 `UseRequestOptions` 行为覆盖测试，补齐 `pollingWhenHidden`、`pausePollingOnError`、`pollingRetryInterval`、`debounceLeading/trailing/maxWait`、`throttleLeading/trailing`、`retryExponential`、`onRetryAttempt`、`connectTimeout/receiveTimeout/sendTimeout`、`loadingDelay` 等关键配置项回归。
+- 文档：README 顶部补充 GitHub 仓库地址，便于从 pub.dev 直接跳转源码与 Issue。
+
 ## 0.3.3
 
 - 修复：为 `UseRequestObserver` 全部回调增加安全隔离，观察者异常不再影响请求主流程。
