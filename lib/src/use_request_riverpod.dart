@@ -131,6 +131,16 @@ class UseRequestNotifier<TData, TParams>
     }
   }
 
+  void _ensurePollingActive(PollingController<TData> controller) {
+    if (controller.isPaused) {
+      controller.resume();
+      return;
+    }
+    if (!controller.isRunning) {
+      controller.start();
+    }
+  }
+
   void _initializeUtilities() {
     // 初始化防抖
     if (options.debounceInterval != null) {
@@ -188,11 +198,7 @@ class UseRequestNotifier<TData, TParams>
                 final shouldAutoStart = !options.manual;
                 final canPoll = hasParams && (shouldAutoStart || hasEverRun);
                 if (canPoll) {
-                  if (!_pollingController!.isRunning) {
-                    _pollingController!.start();
-                  } else {
-                    _pollingController!.resume();
-                  }
+                  _ensurePollingActive(_pollingController!);
                 }
               });
             }
@@ -537,7 +543,7 @@ class UseRequestNotifier<TData, TParams>
           _lastParamsByKey[_lastKey!] != null &&
           !_pollingController!.isRunning &&
           _ready) {
-        _pollingController!.start();
+        _ensurePollingActive(_pollingController!);
       }
 
       // 完成回调
@@ -763,7 +769,7 @@ class UseRequestNotifier<TData, TParams>
           _pollingController != null &&
           _lastKey != null &&
           _hasLastInvocationForKey(_lastKey!)) {
-        _pollingController!.start();
+        _ensurePollingActive(_pollingController!);
       }
     } else {
       _pollingController?.pause();
@@ -893,11 +899,7 @@ class UseRequestNotifier<TData, TParams>
                   final shouldAutoStart = !options.manual;
                   final canPoll = hasParams && (shouldAutoStart || hasEverRun);
                   if (canPoll) {
-                    if (!_pollingController!.isRunning) {
-                      _pollingController!.start();
-                    } else {
-                      _pollingController!.resume();
-                    }
+                    _ensurePollingActive(_pollingController!);
                   }
                 });
               }

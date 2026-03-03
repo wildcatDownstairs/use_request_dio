@@ -16,6 +16,16 @@ import 'utils/cache_policy.dart';
 import 'utils/observer.dart';
 import 'utils/dio_adapter.dart' show HttpRequestConfig;
 
+void _ensurePollingActive<TData>(PollingController<TData> controller) {
+  if (controller.isPaused) {
+    controller.resume();
+    return;
+  }
+  if (!controller.isRunning) {
+    controller.start();
+  }
+}
+
 TData? _resolveInitialCachedData<TData, TParams>(
   UseRequestOptions<TData, TParams> options,
 ) {
@@ -493,7 +503,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
           lastParamsMapRef.value[lastKeyRef.value!] != null &&
           !pollingControllerRef.value!.isRunning &&
           opts.ready) {
-        pollingControllerRef.value!.start();
+        _ensurePollingActive(pollingControllerRef.value!);
         pollingActiveRef.value = true;
       }
 
@@ -813,11 +823,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
                     opts.ready && hasParams && (shouldAutoStart || hasEverRun);
 
                 if (canPoll) {
-                  if (!controller.isRunning) {
-                    controller.start();
-                  } else {
-                    controller.resume();
-                  }
+                  _ensurePollingActive(controller);
                   pollingActiveRef.value = true;
                 }
               });
@@ -867,11 +873,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
           (shouldAutoStart || hasEverRun);
 
       if (canPoll) {
-        if (!controller.isRunning) {
-          controller.start();
-        } else {
-          controller.resume();
-        }
+        _ensurePollingActive(controller);
         pollingActiveRef.value = true;
       } else {
         controller.pause();
