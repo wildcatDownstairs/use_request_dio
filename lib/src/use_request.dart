@@ -344,11 +344,13 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     // 注意：loadMore 场景下不会触发 onBefore，因为 loadMore 是追加数据操作，
     // 而非全新请求。如需在 loadMore 前执行逻辑，请在调用 loadMore() 前自行处理。
     if (!isLoadMore) {
-      opts.onBefore?.call(params);
+      try {
+        opts.onBefore?.call(params);
+      } catch (_) {}
     }
 
     // 通知全局观察者
-    UseRequestObserver.instance?.onRequest(key, params);
+    notifyRequestObserverRequest(key, params);
 
     // 读取缓存
     TData? cachedData;
@@ -373,9 +375,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       );
       cachedData = coordinator.getFresh();
       if (cachedData != null) {
-        UseRequestObserver.instance?.onCacheHit(
-          cacheKey, coordinator.shouldRevalidate(),
-        );
+        notifyRequestObserverCacheHit(cacheKey, coordinator.shouldRevalidate());
         updateState(
           (s) => s.copyWith(
             loading: false,
@@ -405,7 +405,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     } else {
       setLoading(true);
       // keepPreviousData=false（默认）且参数变化时清除旧数据，避免显示不匹配的数据
-      final shouldClearData = !opts.keepPreviousData &&
+      final shouldClearData =
+          !opts.keepPreviousData &&
           cachedData == null &&
           stateNotifier.value.params != params;
       updateState(
@@ -478,7 +479,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       } catch (_) {
         // 回调异常不应中断请求流程
       }
-      UseRequestObserver.instance?.onSuccess(key, mergedResult, params);
+      notifyRequestObserverSuccess(key, mergedResult, params);
 
       // 写入缓存
       if (cacheKey != null && cacheKey.isNotEmpty) {
@@ -502,7 +503,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       } catch (_) {
         // 回调异常不应中断请求流程
       }
-      UseRequestObserver.instance?.onFinally(key, params);
+      notifyRequestObserverFinally(key, params);
 
       return mergedResult;
     } catch (e) {
@@ -532,7 +533,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       } catch (_) {
         // 回调异常不应中断请求流程
       }
-      UseRequestObserver.instance?.onError(key, e, params);
+      notifyRequestObserverError(key, e, params);
 
       // 触发完成回调
       try {
@@ -540,7 +541,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       } catch (_) {
         // 回调异常不应中断请求流程
       }
-      UseRequestObserver.instance?.onFinally(key, params);
+      notifyRequestObserverFinally(key, params);
 
       if (cacheKey != null && cacheKey.isNotEmpty) {
         clearCacheEntry(cacheKey);
@@ -622,9 +623,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   Future<TData> loadMoreAsync() {
     // 如果 hasMore 明确为 false，不再发起请求
     if (stateNotifier.value.hasMore == false) {
-      return Future.error(
-        StateError('没有更多数据可加载（hasMore 为 false）'),
-      );
+      return Future.error(StateError('没有更多数据可加载（hasMore 为 false）'));
     }
     final lastKey = lastKeyRef.value;
     if (lastKey == null) {
@@ -664,11 +663,15 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         final lastParams = lastParamsMapRef.value[lastKey];
         if (lastParams != null && opts.cacheKey != null) {
           final ck = opts.cacheKey!(lastParams as TParams);
-          if (ck.isNotEmpty && newData != null) {
-            setCache<TData>(ck, newData);
+          if (ck.isNotEmpty) {
+            if (newData != null) {
+              setCache<TData>(ck, newData);
+            } else {
+              clearCacheEntry(ck);
+            }
           }
         }
-        UseRequestObserver.instance?.onMutate(lastKey, oldData, newData);
+        notifyRequestObserverMutate(lastKey, oldData, newData);
       }
     }
   }
@@ -677,7 +680,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   void cancel() {
     for (final entry in cancelTokenMapRef.value.entries) {
       entry.value?.cancel('Request cancelled by user');
-      UseRequestObserver.instance?.onCancel(entry.key);
+      notifyRequestObserverCancel(entry.key);
     }
     loadingDelayControllerRef.value?.endLoading();
     updateState((s) => s.copyWith(loading: false, loadingMore: false));

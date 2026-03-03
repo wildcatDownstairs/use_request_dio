@@ -970,18 +970,33 @@ class UseRequestOptions<TData, TParams> {
   @override
   int get hashCode {
     final h1 = Object.hash(
-      manual, ready, keepPreviousData,
-      pollingWhenHidden, pausePollingOnError,
-      debounceLeading, debounceTrailing,
-      throttleLeading, throttleTrailing,
-      retryExponential, refreshOnFocus, refreshOnReconnect,
+      manual,
+      ready,
+      keepPreviousData,
+      pollingWhenHidden,
+      pausePollingOnError,
+      debounceLeading,
+      debounceTrailing,
+      throttleLeading,
+      throttleTrailing,
+      retryExponential,
+      refreshOnFocus,
+      refreshOnReconnect,
     );
     final h2 = Object.hash(
-      connectTimeout, receiveTimeout, sendTimeout,
-      pollingInterval, pollingRetryInterval,
-      debounceInterval, debounceMaxWait, throttleInterval,
-      retryCount, retryInterval, loadingDelay,
-      cacheTime, staleTime,
+      connectTimeout,
+      receiveTimeout,
+      sendTimeout,
+      pollingInterval,
+      pollingRetryInterval,
+      debounceInterval,
+      debounceMaxWait,
+      throttleInterval,
+      retryCount,
+      retryInterval,
+      loadingDelay,
+      cacheTime,
+      staleTime,
     );
     return Object.hash(h1, h2);
   }
