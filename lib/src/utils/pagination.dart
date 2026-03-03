@@ -29,14 +29,21 @@ class PaginationHelpers {
   ///
   /// 注意：此辅助方法通过内部计数器追踪当前页码。
   /// 每次调用返回的函数时，页码递增。
+  ///
+  /// 可选传入 [shouldReset] 来定义何时重置为 [startPage]。
+  /// 典型场景：切换筛选条件或手动刷新后，下一次 loadMore 需要从第一页重新开始计数。
   static TParams Function(TParams lastParams, TData? data)
   pageParams<TParams, TData>({
     required int pageSize,
     required PageParamBuilder<TParams, TData> builder,
     int startPage = 1,
+    bool Function(TParams lastParams, TData? data)? shouldReset,
   }) {
     int currentPage = startPage;
     return (lastParams, data) {
+      if (shouldReset?.call(lastParams, data) ?? false) {
+        currentPage = startPage;
+      }
       currentPage++;
       return builder(currentPage, pageSize, lastParams);
     };

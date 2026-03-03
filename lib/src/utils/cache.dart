@@ -159,15 +159,18 @@ class RequestCache {
       }
     }
 
-    // LRU：命中时将条目移到末尾（最近使用）
-    _store.remove(key);
-    _store[key] = entry;
-
     // 类型安全守卫：若存储的数据类型与请求类型不匹配，返回 null 而非崩溃
     if (entry.data != null && entry.data is! T) {
       return null;
     }
-    return RequestCacheEntry<T>(data: entry.data as T?, timestamp: entry.timestamp);
+
+    // LRU：仅在类型匹配时将条目移到末尾（最近使用）
+    _store.remove(key);
+    _store[key] = entry;
+    return RequestCacheEntry<T>(
+      data: entry.data as T?,
+      timestamp: entry.timestamp,
+    );
   }
 
   /// 设置缓存数据
