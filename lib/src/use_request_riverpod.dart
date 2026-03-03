@@ -17,6 +17,7 @@ import 'utils/focus_manager.dart';
 import 'utils/cache.dart';
 import 'utils/cache_policy.dart';
 import 'utils/cancel_token.dart';
+import 'utils/observer.dart';
 import 'utils/dio_adapter.dart' show HttpRequestConfig;
 
 ({bool isValid, TParams? params}) _resolveInvocableParams<TParams>(
@@ -56,7 +57,7 @@ UseRequestState<TData, TParams> _buildInitialState<TData, TParams>(
 
   return UseRequestState<TData, TParams>(
     params: options.defaultParams,
-    data: initialData,
+    data: initialData ?? options.initialData,
   );
 }
 
@@ -395,7 +396,11 @@ class UseRequestNotifier<TData, TParams>
       options.onBefore?.call(params);
     }
 
+    // 通知全局观察者
+    UseRequestObserver.instance?.onRequest(key, params);
+
     // 读取缓存
+    TData? cachedData;
     final cacheKey = options.cacheKey?.call(params);
     if (cacheKey != null && cacheKey.isNotEmpty) {
       final pending = getPendingCache<TData>(cacheKey);
@@ -414,8 +419,11 @@ class UseRequestNotifier<TData, TParams>
         cacheTime: options.cacheTime,
         staleTime: options.staleTime,
       );
-      final cachedData = coordinator.getFresh();
+      cachedData = coordinator.getFresh();
       if (cachedData != null) {
+        UseRequestObserver.instance?.onCacheHit(
+          cacheKey, coordinator.shouldRevalidate(),
+        );
         if (mounted) {
           state = state.copyWith(
             loading: false,
@@ -442,10 +450,15 @@ class UseRequestNotifier<TData, TParams>
       }
     } else {
       _setLoading(true);
+      // keepPreviousData=false（默认）且参数变化时清除旧数据
+      final shouldClearData = !options.keepPreviousData &&
+          cachedData == null &&
+          state.params != params;
       if (mounted) {
         state = state.copyWith(
           params: params,
           clearError: true,
+          clearData: shouldClearData,
           requestCount: currentRequestCount,
         );
       }
@@ -509,6 +522,7 @@ class UseRequestNotifier<TData, TParams>
       } catch (_) {
         // 回调异常不应中断请求流程
       }
+      UseRequestObserver.instance?.onSuccess(key, mergedResult, params);
 
       // 写入缓存
       if (cacheKey != null && cacheKey.isNotEmpty) {
@@ -531,6 +545,7 @@ class UseRequestNotifier<TData, TParams>
       } catch (_) {
         // 回调异常不应中断请求流程
       }
+      UseRequestObserver.instance?.onFinally(key, params);
 
       return mergedResult;
     } catch (e) {
@@ -560,6 +575,7 @@ class UseRequestNotifier<TData, TParams>
       } catch (_) {
         // 回调异常不应中断请求流程
       }
+      UseRequestObserver.instance?.onError(key, e, params);
 
       // 完成回调
       try {
@@ -567,6 +583,7 @@ class UseRequestNotifier<TData, TParams>
       } catch (_) {
         // 回调异常不应中断请求流程
       }
+      UseRequestObserver.instance?.onFinally(key, params);
 
       if (cacheKey != null && cacheKey.isNotEmpty) {
         clearCacheEntry(cacheKey);
@@ -661,18 +678,31 @@ class UseRequestNotifier<TData, TParams>
     unawaited(loadMoreAsync().then<void>((_) {}, onError: (_) {}));
   }
 
-  /// 直接修改数据（不触发请求）
+  /// 直接修改数据（不触发请求），同步写入全局缓存
   void mutate(TData? Function(TData? oldData)? mutator) {
     if (mutator != null && mounted) {
+      final oldData = state.data;
       final newData = mutator(state.data);
       state = state.copyWith(data: newData, clearData: newData == null);
+      // 同步写入全局缓存
+      if (_lastKey != null) {
+        final lastParams = _lastParamsByKey[_lastKey!];
+        if (lastParams != null && options.cacheKey != null) {
+          final ck = options.cacheKey!(lastParams as TParams);
+          if (ck.isNotEmpty && newData != null) {
+            setCache<TData>(ck, newData);
+          }
+        }
+        UseRequestObserver.instance?.onMutate(_lastKey!, oldData, newData);
+      }
     }
   }
 
   /// 取消当前进行中的请求（取消所有 key 的请求）
   void cancel() {
-    for (final token in _cancelTokens.values) {
-      token?.cancel('Request cancelled by user');
+    for (final entry in _cancelTokens.entries) {
+      entry.value?.cancel('Request cancelled by user');
+      UseRequestObserver.instance?.onCancel(entry.key);
     }
     _loadingDelayController?.endLoading();
     if (mounted) {

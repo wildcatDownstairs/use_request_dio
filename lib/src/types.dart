@@ -285,6 +285,31 @@ class UseRequestOptions<TData, TParams> {
   /// ```
   final TParams? defaultParams;
 
+  /// 初始数据
+  ///
+  /// 在首次请求完成前使用的占位数据。不会写入缓存，仅用于首帧渲染。
+  /// 适用于 SSR 预取、页面间传参等场景。
+  ///
+  /// ```dart
+  /// UseRequestOptions(
+  ///   initialData: User(name: '加载中...'),
+  /// )
+  /// ```
+  final TData? initialData;
+
+  /// 参数变化时保留上一次数据
+  ///
+  /// 当为 `true` 时，参数变化触发新请求不会立即清空旧数据，
+  /// 而是等到新数据返回后才替换。适用于 Tab 切换、搜索场景，避免 UI 闪白。
+  ///
+  /// ```dart
+  /// UseRequestOptions(
+  ///   keepPreviousData: true,
+  ///   refreshDeps: [categoryId.value],
+  /// )
+  /// ```
+  final bool keepPreviousData;
+
   /// 依赖变化时触发刷新
   ///
   /// - Hook 版：可通过 [refreshDeps] / [refreshDepsAction] 自动监听依赖变化。
@@ -692,6 +717,8 @@ class UseRequestOptions<TData, TParams> {
     this.manual = false,
     this.ready = true,
     this.defaultParams,
+    this.initialData,
+    this.keepPreviousData = false,
     this.refreshDeps,
     this.refreshDepsAction,
     // 超时配置
@@ -760,6 +787,8 @@ class UseRequestOptions<TData, TParams> {
     bool? manual,
     bool? ready,
     Object? defaultParams = _useRequestOptionsUnset,
+    Object? initialData = _useRequestOptionsUnset,
+    bool? keepPreviousData,
     Object? refreshDeps = _useRequestOptionsUnset,
     Object? refreshDepsAction = _useRequestOptionsUnset,
     Object? connectTimeout = _useRequestOptionsUnset,
@@ -803,6 +832,10 @@ class UseRequestOptions<TData, TParams> {
       defaultParams: identical(defaultParams, _useRequestOptionsUnset)
           ? this.defaultParams
           : defaultParams as TParams?,
+      initialData: identical(initialData, _useRequestOptionsUnset)
+          ? this.initialData
+          : initialData as TData?,
+      keepPreviousData: keepPreviousData ?? this.keepPreviousData,
       refreshDeps: identical(refreshDeps, _useRequestOptionsUnset)
           ? this.refreshDeps
           : refreshDeps as List<Object?>?,
@@ -896,6 +929,61 @@ class UseRequestOptions<TData, TParams> {
           ? this.onRetryAttempt
           : onRetryAttempt as OnRetryAttempt<TParams>?,
     );
+  }
+
+  /// 比较两个配置是否在"可观测"层面相同
+  ///
+  /// 只比较标量配置字段（bool、Duration、int 等），不比较函数引用（onBefore、onSuccess 等），
+  /// 因为函数引用在 inline 构造时每次都不同。
+  /// 用于 `didUpdateWidget` 中判断是否需要重建 notifier。
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! UseRequestOptions<TData, TParams>) return false;
+    return other.manual == manual &&
+        other.ready == ready &&
+        other.keepPreviousData == keepPreviousData &&
+        other.pollingWhenHidden == pollingWhenHidden &&
+        other.pausePollingOnError == pausePollingOnError &&
+        other.debounceLeading == debounceLeading &&
+        other.debounceTrailing == debounceTrailing &&
+        other.throttleLeading == throttleLeading &&
+        other.throttleTrailing == throttleTrailing &&
+        other.retryExponential == retryExponential &&
+        other.refreshOnFocus == refreshOnFocus &&
+        other.refreshOnReconnect == refreshOnReconnect &&
+        other.connectTimeout == connectTimeout &&
+        other.receiveTimeout == receiveTimeout &&
+        other.sendTimeout == sendTimeout &&
+        other.pollingInterval == pollingInterval &&
+        other.pollingRetryInterval == pollingRetryInterval &&
+        other.debounceInterval == debounceInterval &&
+        other.debounceMaxWait == debounceMaxWait &&
+        other.throttleInterval == throttleInterval &&
+        other.retryCount == retryCount &&
+        other.retryInterval == retryInterval &&
+        other.loadingDelay == loadingDelay &&
+        other.cacheTime == cacheTime &&
+        other.staleTime == staleTime;
+  }
+
+  @override
+  int get hashCode {
+    final h1 = Object.hash(
+      manual, ready, keepPreviousData,
+      pollingWhenHidden, pausePollingOnError,
+      debounceLeading, debounceTrailing,
+      throttleLeading, throttleTrailing,
+      retryExponential, refreshOnFocus, refreshOnReconnect,
+    );
+    final h2 = Object.hash(
+      connectTimeout, receiveTimeout, sendTimeout,
+      pollingInterval, pollingRetryInterval,
+      debounceInterval, debounceMaxWait, throttleInterval,
+      retryCount, retryInterval, loadingDelay,
+      cacheTime, staleTime,
+    );
+    return Object.hash(h1, h2);
   }
 }
 

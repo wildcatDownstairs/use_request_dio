@@ -1,3 +1,15 @@
+## 0.3.1
+
+- **BREAKING**: `UseRequestOptions` 新增 `==` / `hashCode`（基于标量配置字段），解决 `didUpdateWidget` 中 inline 构造导致无限重建。
+- **BREAKING**: `mutate()` 现在同步写入全局 `RequestCache`，共享同一 `cacheKey` 的组件可见乐观更新。
+- Fix: `RequestCache.get<T>` 新增类型安全守卫，类型不匹配时返回 null 而非运行时崩溃。
+- Fix: Hook 版 `ready` 从 false→true 时，若有待执行的 `refreshDeps` 回放，跳过自动请求避免同帧重复触发。
+- Feat: 新增 `initialData` 选项，支持 SSR/预加载数据注入，首帧即可渲染。
+- Feat: 新增 `keepPreviousData` 选项，参数变化时保留旧数据直到新数据到达，避免 UI 闪白。
+- Feat: 新增 `UseRequestObserver` 全局观察者机制，支持日志记录、请求监控、调试。
+- Feat: `CacheCoordinator` 无 `staleTime` 时始终后台刷新（SWR 语义完善）。
+- Test: 新增 32 个测试用例，覆盖缓存 LRU/类型安全、Options 等价性、Observer、状态机流转、错误路径、分页轮询。
+
 ## 0.3.0
 
 - Fix: `RequestCache` 新增 LRU 淘汰策略（默认最大 256 条），防止长时间运行导致内存无限增长（Bug 10）。
