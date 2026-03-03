@@ -1,3 +1,10 @@
+## 0.3.2
+
+- Feat: `UseRequestNotifier` 新增 `updateOptions()` 方法，支持运行时动态更新防抖/节流/轮询间隔等工具参数，不销毁 Notifier、不丢失请求状态。
+- Feat: `UseRequestBuilder` 的 `didUpdateWidget` 在仅 options 变化时调用 `updateOptions()` 而非销毁重建，保留已有数据和轮询状态。
+- Feat: `UseRequestMixin` 同步暴露 `updateOptions()` 便捷方法。
+- Test: 新增 `updateOptions` 状态保持测试。
+
 ## 0.3.1
 
 - **BREAKING**: `UseRequestOptions` 新增 `==` / `hashCode`（基于标量配置字段），解决 `didUpdateWidget` 中 inline 构造导致无限重建。

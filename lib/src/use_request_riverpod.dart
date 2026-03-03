@@ -65,7 +65,7 @@ UseRequestState<TData, TParams> _buildInitialState<TData, TParams>(
 class UseRequestNotifier<TData, TParams>
     extends StateNotifier<UseRequestState<TData, TParams>> {
   final Service<TData, TParams> service;
-  final UseRequestOptions<TData, TParams> options;
+  UseRequestOptions<TData, TParams> options;
 
   final Map<String, CancelToken?> _cancelTokens = {};
   final Map<String, int> _requestCounts = {};
@@ -806,6 +806,112 @@ class UseRequestNotifier<TData, TParams>
     }
   }
 
+  /// 动态更新配置参数（防抖/节流/轮询等工具参数），不销毁 Notifier、不丢失状态。
+  ///
+  /// 仅当工具相关参数发生变化时才会重建对应工具实例，轮询状态（运行/暂停）会被保留。
+  void updateOptions(UseRequestOptions<TData, TParams> newOptions) {
+    final old = options;
+    options = newOptions;
+
+    // — 防抖参数变化 —
+    final debounceChanged =
+        old.debounceInterval != newOptions.debounceInterval ||
+        old.debounceLeading != newOptions.debounceLeading ||
+        old.debounceTrailing != newOptions.debounceTrailing ||
+        old.debounceMaxWait != newOptions.debounceMaxWait;
+    if (debounceChanged) {
+      _debouncer?.dispose();
+      _debouncer = null;
+      if (newOptions.debounceInterval != null) {
+        _debouncer = Debouncer<TData>(
+          duration: newOptions.debounceInterval!,
+          leading: newOptions.debounceLeading,
+          trailing: newOptions.debounceTrailing,
+          maxWait: newOptions.debounceMaxWait,
+        );
+      }
+    }
+
+    // — 节流参数变化 —
+    final throttleChanged =
+        old.throttleInterval != newOptions.throttleInterval ||
+        old.throttleLeading != newOptions.throttleLeading ||
+        old.throttleTrailing != newOptions.throttleTrailing;
+    if (throttleChanged) {
+      _throttler?.dispose();
+      _throttler = null;
+      if (newOptions.throttleInterval != null) {
+        _throttler = Throttler<TData>(
+          duration: newOptions.throttleInterval!,
+          leading: newOptions.throttleLeading,
+          trailing: newOptions.throttleTrailing,
+          maxWait: newOptions.throttleInterval,
+        );
+      }
+    }
+
+    // — 轮询参数变化 —
+    final pollingChanged =
+        old.pollingInterval != newOptions.pollingInterval;
+    if (pollingChanged) {
+      final wasRunning = _pollingController?.isRunning ?? false;
+      _pollingRetryTimer?.cancel();
+      _pollingRetryTimer = null;
+      _pollingController?.dispose();
+      _pollingController = null;
+
+      if (newOptions.pollingInterval != null) {
+        _pollingController = PollingController<TData>(
+          interval: newOptions.pollingInterval!,
+          action: () {
+            if (_lastKey != null) {
+              if (_hasLastInvocationForKey(_lastKey!)) {
+                final TParams params;
+                if (options.loadMoreParams != null &&
+                    options.defaultParams != null) {
+                  params = options.defaultParams as TParams;
+                } else {
+                  params = _lastParamsByKey[_lastKey!] as TParams;
+                }
+                return _fetchData(_lastKey!, params);
+              }
+            }
+            throw StateError('No params for polling');
+          },
+          onError: (_) {
+            if (options.pausePollingOnError) {
+              _pollingController?.pause();
+              _pollingRetryTimer?.cancel();
+              if (options.pollingRetryInterval != null) {
+                _pollingRetryTimer =
+                    Timer(options.pollingRetryInterval!, () {
+                  if (!_ready || _pollingController == null) return;
+                  final hasParams =
+                      _lastKey != null && _hasLastInvocationForKey(_lastKey!);
+                  final hasEverRun = state.requestCount > 0;
+                  final shouldAutoStart = !options.manual;
+                  final canPoll =
+                      hasParams && (shouldAutoStart || hasEverRun);
+                  if (canPoll) {
+                    if (!_pollingController!.isRunning) {
+                      _pollingController!.start();
+                    } else {
+                      _pollingController!.resume();
+                    }
+                  }
+                });
+              }
+            }
+          },
+        );
+        // 恢复之前的运行状态
+        if (wasRunning && _ready) {
+          _pollingController!.start();
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
     _debouncer?.dispose();
@@ -913,6 +1019,10 @@ mixin UseRequestMixin<TData, TParams> {
       _notifier.mutate(mutator);
   void cancel() => _notifier.cancel();
 
+  /// 动态更新工具参数（防抖/节流/轮询间隔等），不丢失请求状态。
+  void updateOptions(UseRequestOptions<TData, TParams> newOptions) =>
+      _notifier.updateOptions(newOptions);
+
   void disposeUseRequest() {
     _removeListener();
     _notifier.dispose();
@@ -1001,11 +1111,17 @@ class _UseRequestBuilderState<TData, TParams>
     // 若未提供 serviceKey 则不对 service 变化做判断。
     final serviceChanged = widget.serviceKey != null &&
         oldWidget.serviceKey != widget.serviceKey;
-    if (serviceChanged || !identical(oldWidget.options, widget.options)) {
+    if (serviceChanged) {
+      // service 变化：必须销毁重建
       _removeListener();
       _notifier.dispose();
       _bindNotifier();
       setState(() {});
+    } else if (!identical(oldWidget.options, widget.options)) {
+      // 仅 options 变化：动态更新工具参数，保留请求状态
+      _notifier.updateOptions(
+        widget.options ?? const UseRequestOptions(),
+      );
     }
   }
 

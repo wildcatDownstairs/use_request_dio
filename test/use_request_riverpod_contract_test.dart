@@ -7,10 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:use_request/use_request.dart';
 
 class _RiverpodBuilderProbe<TData, TParams> extends StatelessWidget {
-  const _RiverpodBuilderProbe({super.key, required this.service, this.options});
+  const _RiverpodBuilderProbe({super.key, required this.service, this.options, this.serviceKey});
 
   final Service<TData, TParams> service;
   final UseRequestOptions<TData, TParams>? options;
+  final Object? serviceKey;
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +20,7 @@ class _RiverpodBuilderProbe<TData, TParams> extends StatelessWidget {
         textDirection: TextDirection.ltr,
         child: UseRequestBuilder<TData, TParams>(
           service: service,
+          serviceKey: serviceKey,
           options: options,
           builder: (context, state, notifier) {
             return Text('${state.loading}|${state.data ?? 'null'}');
@@ -303,6 +305,7 @@ void main() {
         _RiverpodBuilderProbe<String, int>(
           key: const ValueKey('request-builder'),
           service: serviceA,
+          serviceKey: 'A',
           options: const UseRequestOptions(defaultParams: 1),
         ),
       );
@@ -316,6 +319,7 @@ void main() {
         _RiverpodBuilderProbe<String, int>(
           key: const ValueKey('request-builder'),
           service: serviceB,
+          serviceKey: 'B',
           options: const UseRequestOptions(defaultParams: 2),
         ),
       );
@@ -324,6 +328,48 @@ void main() {
       expect(find.text('false|B2'), findsOneWidget);
       expect(serviceACallCount, 1);
       expect(serviceBCallCount, 1);
+    },
+  );
+
+  testWidgets(
+    'updateOptions preserves data state while updating utility params',
+    (tester) async {
+      var callCount = 0;
+      Future<String> service(int value) async {
+        callCount += 1;
+        return 'V$value';
+      }
+
+      // 首次渲染，不带防抖
+      await tester.pumpWidget(
+        _RiverpodBuilderProbe<String, int>(
+          key: const ValueKey('update-opts'),
+          service: service,
+          options: const UseRequestOptions(defaultParams: 1),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('false|V1'), findsOneWidget);
+      expect(callCount, 1);
+
+      // 更新 options（增加防抖），不应丢失已有数据
+      await tester.pumpWidget(
+        _RiverpodBuilderProbe<String, int>(
+          key: const ValueKey('update-opts'),
+          service: service,
+          options: const UseRequestOptions(
+            defaultParams: 1,
+            debounceInterval: Duration(milliseconds: 500),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 数据仍在（未被销毁重建）
+      expect(find.text('false|V1'), findsOneWidget);
+      // 未触发新请求
+      expect(callCount, 1);
     },
   );
 }
