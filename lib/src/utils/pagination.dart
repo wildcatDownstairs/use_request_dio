@@ -26,15 +26,19 @@ class PaginationHelpers {
   }
 
   /// 根据 page/pageSize 生成 loadMoreParams
+  ///
+  /// 注意：此辅助方法通过内部计数器追踪当前页码。
+  /// 每次调用返回的函数时，页码递增。
   static TParams Function(TParams lastParams, TData? data)
   pageParams<TParams, TData>({
     required int pageSize,
     required PageParamBuilder<TParams, TData> builder,
     int startPage = 1,
   }) {
+    int currentPage = startPage;
     return (lastParams, data) {
-      // 从 lastParams 中无法推断当前 page，交由外部 builder 定义
-      return builder(startPage + 1, pageSize, lastParams);
+      currentPage++;
+      return builder(currentPage, pageSize, lastParams);
     };
   }
 }

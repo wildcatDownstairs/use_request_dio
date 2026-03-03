@@ -93,8 +93,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   final lastParamsMapRef = useRef<Map<String, TParams?>>({});
   final lastKeyRef = useRef<String?>(null);
 
-  // 初始化默认参数的 key
-  if (opts.defaultParams != null) {
+  // 初始化默认参数的 key（仅首次执行，避免每次 build 覆盖用户手动传入的参数）
+  final hasInitializedDefaultParams = useRef<bool>(false);
+  if (!hasInitializedDefaultParams.value && opts.defaultParams != null) {
+    hasInitializedDefaultParams.value = true;
     final key = getKey(opts.defaultParams as TParams);
     lastParamsMapRef.value[key] = opts.defaultParams;
     lastKeyRef.value = key;
@@ -261,6 +263,14 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         ),
       );
 
+      // 复用请求同样触发成功和完成回调
+      try {
+        opts.onSuccess?.call(mergedResult, params);
+      } catch (_) {}
+      try {
+        opts.onFinally?.call(params, mergedResult, null);
+      } catch (_) {}
+
       return mergedResult;
     } catch (e) {
       final latestCount = requestCountMapRef.value[key] ?? currentRequestCount;
@@ -279,6 +289,13 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         updateState(
           (s) => s.copyWith(loading: false, loadingMore: false, error: e),
         );
+        // 复用请求同样触发失败和完成回调
+        try {
+          opts.onError?.call(e, params);
+        } catch (_) {}
+        try {
+          opts.onFinally?.call(params, null, e);
+        } catch (_) {}
       }
 
       return Future.error(e);
@@ -323,6 +340,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     lastKeyRef.value = key;
 
     // 触发 onBefore 回调
+    // 注意：loadMore 场景下不会触发 onBefore，因为 loadMore 是追加数据操作，
+    // 而非全新请求。如需在 loadMore 前执行逻辑，请在调用 loadMore() 前自行处理。
     if (!isLoadMore) {
       opts.onBefore?.call(params);
     }
@@ -440,8 +459,12 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         ),
       );
 
-      // 触发成功回调
-      opts.onSuccess?.call(mergedResult, params);
+      // 触发成功回调（捕获回调异常，确保后续缓存写入和 onFinally 不被跳过）
+      try {
+        opts.onSuccess?.call(mergedResult, params);
+      } catch (_) {
+        // 回调异常不应中断请求流程
+      }
 
       // 写入缓存
       if (cacheKey != null && cacheKey.isNotEmpty) {
@@ -460,7 +483,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       }
 
       // 触发完成回调
-      opts.onFinally?.call(params, mergedResult, null);
+      try {
+        opts.onFinally?.call(params, mergedResult, null);
+      } catch (_) {
+        // 回调异常不应中断请求流程
+      }
 
       return mergedResult;
     } catch (e) {
@@ -484,11 +511,19 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         (s) => s.copyWith(loading: false, loadingMore: false, error: e),
       );
 
-      // 触发失败回调
-      opts.onError?.call(e, params);
+      // 触发失败回调（捕获回调异常，确保 onFinally 和缓存清理不被跳过）
+      try {
+        opts.onError?.call(e, params);
+      } catch (_) {
+        // 回调异常不应中断请求流程
+      }
 
       // 触发完成回调
-      opts.onFinally?.call(params, null, e);
+      try {
+        opts.onFinally?.call(params, null, e);
+      } catch (_) {
+        // 回调异常不应中断请求流程
+      }
 
       if (cacheKey != null && cacheKey.isNotEmpty) {
         clearCacheEntry(cacheKey);
@@ -547,6 +582,17 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       throw StateError('No previous params to refresh with');
     }
     final params = paramsMap[lastKey];
+    // 安全类型检查：当 TParams 为非空类型而 params 为 null 时，
+    // 尝试回退到 defaultParams，避免运行时 _CastError。
+    if (!canInvokeWithParams(params)) {
+      if (canInvokeWithParams(opts.defaultParams)) {
+        return runAsync(opts.defaultParams as TParams);
+      }
+      throw StateError(
+        'Cannot refresh: last params ($params) is not a valid $TParams '
+        'and no usable defaultParams available',
+      );
+    }
     return runAsync(params as TParams);
   }
 
@@ -557,6 +603,12 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
   // 加载更多
   Future<TData> loadMoreAsync() {
+    // 如果 hasMore 明确为 false，不再发起请求
+    if (stateNotifier.value.hasMore == false) {
+      return Future.error(
+        StateError('没有更多数据可加载（hasMore 为 false）'),
+      );
+    }
     final lastKey = lastKeyRef.value;
     if (lastKey == null) {
       throw StateError('No previous key to load more with');
@@ -590,11 +642,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     }
   }
 
-  // 取消当前请求
+  // 取消当前请求（取消所有 key 的进行中请求）
   void cancel() {
-    final lastKey = lastKeyRef.value;
-    if (lastKey != null) {
-      cancelTokenMapRef.value[lastKey]?.cancel('Request cancelled by user');
+    for (final token in cancelTokenMapRef.value.values) {
+      token?.cancel('Request cancelled by user');
     }
     loadingDelayControllerRef.value?.endLoading();
     updateState((s) => s.copyWith(loading: false, loadingMore: false));
@@ -688,10 +739,18 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       controller = PollingController<TData>(
         interval: opts.pollingInterval!,
         action: () {
+          // 注意：当配置了 loadMoreParams（分页模式）时，轮询使用 defaultParams
+          // 刷新首页数据，而非使用 lastParams（可能是某一页的参数），
+          // 避免轮询覆盖已累积的分页数据。
           final key = lastKeyRef.value;
-          final params = key != null ? lastParamsMapRef.value[key] : null;
           if (key != null && hasLastInvocationForKey(key)) {
-            return fetchData(key, params as TParams);
+            final TParams params;
+            if (opts.loadMoreParams != null && opts.defaultParams != null) {
+              params = opts.defaultParams as TParams;
+            } else {
+              params = (lastParamsMapRef.value[key]) as TParams;
+            }
+            return fetchData(key, params);
           }
           throw StateError('No params for polling');
         },
