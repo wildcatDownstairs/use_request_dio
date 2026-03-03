@@ -10,14 +10,15 @@ void main() {
   group('PaginationHelpers.pageParams', () {
     test('increments page on each call starting from startPage', () {
       final pages = <int>[];
-      final paramBuilder = PaginationHelpers.pageParams<Map<String, int>, String>(
-        pageSize: 20,
-        startPage: 1,
-        builder: (page, pageSize, origin) {
-          pages.add(page);
-          return {'page': page, 'pageSize': pageSize};
-        },
-      );
+      final paramBuilder =
+          PaginationHelpers.pageParams<Map<String, int>, String>(
+            pageSize: 20,
+            startPage: 1,
+            builder: (page, pageSize, origin) {
+              pages.add(page);
+              return {'page': page, 'pageSize': pageSize};
+            },
+          );
 
       // Each call should increment the page
       paramBuilder({'page': 1, 'pageSize': 20}, null);
@@ -25,6 +26,27 @@ void main() {
       paramBuilder({'page': 3, 'pageSize': 20}, null);
 
       expect(pages, [2, 3, 4]);
+    });
+
+    test('supports page counter reset with shouldReset callback', () {
+      final pages = <int>[];
+      final paramBuilder =
+          PaginationHelpers.pageParams<Map<String, int>, String>(
+            pageSize: 20,
+            startPage: 1,
+            shouldReset: (lastParams, data) => lastParams['reset'] == 1,
+            builder: (page, pageSize, origin) {
+              pages.add(page);
+              return {'page': page, 'pageSize': pageSize};
+            },
+          );
+
+      paramBuilder({'page': 1, 'pageSize': 20}, null);
+      paramBuilder({'page': 2, 'pageSize': 20, 'reset': 1}, null);
+      paramBuilder({'page': 1, 'pageSize': 20}, null);
+
+      // First call => 2, reset call => 2, then increment from reset => 3
+      expect(pages, [2, 2, 3]);
     });
   });
 
