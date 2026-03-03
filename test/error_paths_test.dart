@@ -7,6 +7,27 @@ void main() {
   setUp(clearAllCache);
 
   group('Error handling paths', () {
+    test(
+      'onBefore callback throwing does not interrupt request flow',
+      () async {
+        final notifier = UseRequestNotifier<String, int>(
+          service: (p) async => 'result-$p',
+          options: UseRequestOptions(
+            manual: true,
+            onBefore: (params) => throw Exception('onBefore boom'),
+          ),
+        );
+
+        final result = await notifier.runAsync(7);
+
+        expect(result, 'result-7');
+        expect(notifier.currentState.data, 'result-7');
+        expect(notifier.currentState.error, isNull);
+
+        notifier.dispose();
+      },
+    );
+
     test('DioException.connectionTimeout is captured in state.error', () async {
       final notifier = UseRequestNotifier<String, int>(
         service: (p) async {
@@ -48,27 +69,30 @@ void main() {
       notifier.dispose();
     });
 
-    test('onSuccess callback throwing does not prevent onFinally or cache write', () async {
-      var finallyCalled = false;
-      final notifier = UseRequestNotifier<String, int>(
-        service: (p) async => 'result-$p',
-        options: UseRequestOptions(
-          manual: true,
-          cacheKey: (p) => 'err-onsuccess-$p',
-          onSuccess: (data, params) => throw Exception('onSuccess boom'),
-          onFinally: (params, data, error) => finallyCalled = true,
-        ),
-      );
+    test(
+      'onSuccess callback throwing does not prevent onFinally or cache write',
+      () async {
+        var finallyCalled = false;
+        final notifier = UseRequestNotifier<String, int>(
+          service: (p) async => 'result-$p',
+          options: UseRequestOptions(
+            manual: true,
+            cacheKey: (p) => 'err-onsuccess-$p',
+            onSuccess: (data, params) => throw Exception('onSuccess boom'),
+            onFinally: (params, data, error) => finallyCalled = true,
+          ),
+        );
 
-      await notifier.runAsync(1);
+        await notifier.runAsync(1);
 
-      expect(finallyCalled, true);
-      // Cache should still be written
-      final cached = RequestCache.get<String>('err-onsuccess-1');
-      expect(cached?.data, 'result-1');
+        expect(finallyCalled, true);
+        // Cache should still be written
+        final cached = RequestCache.get<String>('err-onsuccess-1');
+        expect(cached?.data, 'result-1');
 
-      notifier.dispose();
-    });
+        notifier.dispose();
+      },
+    );
 
     test('onError callback throwing does not prevent onFinally', () async {
       var finallyCalled = false;

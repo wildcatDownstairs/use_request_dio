@@ -7,7 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:use_request/use_request.dart';
 
 class _RiverpodBuilderProbe<TData, TParams> extends StatelessWidget {
-  const _RiverpodBuilderProbe({super.key, required this.service, this.options, this.serviceKey});
+  const _RiverpodBuilderProbe({
+    super.key,
+    required this.service,
+    this.options,
+    this.serviceKey,
+  });
 
   final Service<TData, TParams> service;
   final UseRequestOptions<TData, TParams>? options;
@@ -369,6 +374,42 @@ void main() {
       // 数据仍在（未被销毁重建）
       expect(find.text('false|V1'), findsOneWidget);
       // 未触发新请求
+      expect(callCount, 1);
+    },
+  );
+
+  testWidgets(
+    'UseRequestBuilder ignores semantically equal options instances',
+    (tester) async {
+      var callCount = 0;
+      Future<String> service(int value) async {
+        callCount += 1;
+        return 'S$value';
+      }
+
+      await tester.pumpWidget(
+        _RiverpodBuilderProbe<String, int>(
+          key: const ValueKey('equal-opts'),
+          service: service,
+          options: const UseRequestOptions(defaultParams: 1),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('false|S1'), findsOneWidget);
+      expect(callCount, 1);
+
+      // New instance with same scalar options should not trigger extra request.
+      await tester.pumpWidget(
+        _RiverpodBuilderProbe<String, int>(
+          key: const ValueKey('equal-opts'),
+          service: service,
+          options: const UseRequestOptions(defaultParams: 1),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('false|S1'), findsOneWidget);
       expect(callCount, 1);
     },
   );

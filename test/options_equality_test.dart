@@ -16,8 +16,12 @@ void main() {
       final b = UseRequestOptions<String, int>(
         manual: true,
         pollingInterval: const Duration(seconds: 5),
-        onSuccess: (data, params) {/* different closure */},
-        onError: (error, params) {/* different closure */},
+        onSuccess: (data, params) {
+          /* different closure */
+        },
+        onError: (error, params) {
+          /* different closure */
+        },
       );
       expect(a, equals(b));
     });
