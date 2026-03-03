@@ -59,3 +59,45 @@ class UseRequestObserver {
   /// 请求被取消时触发
   void onCancel(String key) {}
 }
+
+void notifyRequestObserverRequest(String key, Object? params) {
+  try {
+    UseRequestObserver.instance?.onRequest(key, params);
+  } catch (_) {}
+}
+
+void notifyRequestObserverSuccess(String key, Object? data, Object? params) {
+  try {
+    UseRequestObserver.instance?.onSuccess(key, data, params);
+  } catch (_) {}
+}
+
+void notifyRequestObserverError(String key, Object error, Object? params) {
+  try {
+    UseRequestObserver.instance?.onError(key, error, params);
+  } catch (_) {}
+}
+
+void notifyRequestObserverFinally(String key, Object? params) {
+  try {
+    UseRequestObserver.instance?.onFinally(key, params);
+  } catch (_) {}
+}
+
+void notifyRequestObserverCacheHit(String cacheKey, bool isStale) {
+  try {
+    UseRequestObserver.instance?.onCacheHit(cacheKey, isStale);
+  } catch (_) {}
+}
+
+void notifyRequestObserverMutate(String key, Object? oldData, Object? newData) {
+  try {
+    UseRequestObserver.instance?.onMutate(key, oldData, newData);
+  } catch (_) {}
+}
+
+void notifyRequestObserverCancel(String key) {
+  try {
+    UseRequestObserver.instance?.onCancel(key);
+  } catch (_) {}
+}
