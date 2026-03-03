@@ -6,6 +6,8 @@
 [![popularity](https://img.shields.io/pub/popularity/use_request)](https://pub.dev/packages/use_request/score)
 [![Flutter CI](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml/badge.svg)](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml)
 
+GitHub 地址：https://github.com/wildcatDownstairs/use_request_dio
+
 # demo
 - 进入示例目录并安装依赖： `cd example && flutter pub get`
 - 按平台启动：
