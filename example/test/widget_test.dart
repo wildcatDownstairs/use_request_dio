@@ -13,12 +13,15 @@ import 'package:example/main.dart';
 void main() {
   testWidgets('Example app renders demo home', (WidgetTester tester) async {
     // The example app uses Riverpod; provide a ProviderScope.
-    await tester.pumpWidget(const ProviderScope(child: MyApp()));
+    await tester.pumpWidget(
+      const ProviderScope(child: MyApp(enableAutoNetwork: false)),
+    );
     await tester.pumpAndSettle();
 
-    // Basic smoke assertions for the demo home page.
-    expect(find.text('useRequest'), findsOneWidget);
-    expect(find.text('功能演示'), findsOneWidget);
-    expect(find.text('基础用法'), findsWidgets);
+    // Basic smoke assertions for the progressive example page.
+    expect(find.text('useRequest 渐进式示例（GitHub API）'), findsOneWidget);
+    expect(find.text('基础自动请求 + Record 解构'), findsOneWidget);
+    expect(find.text('手动请求 + 防抖 + 保留旧数据'), findsOneWidget);
+    expect(find.text('组合数据流（自动前置请求 + 手动触发）'), findsOneWidget);
   });
 }
