@@ -163,8 +163,11 @@ class RequestCache {
     _store.remove(key);
     _store[key] = entry;
 
-    // 类型转换并返回
-    return entry as RequestCacheEntry<T>?;
+    // 类型安全守卫：若存储的数据类型与请求类型不匹配，返回 null 而非崩溃
+    if (entry.data != null && entry.data is! T) {
+      return null;
+    }
+    return RequestCacheEntry<T>(data: entry.data as T?, timestamp: entry.timestamp);
   }
 
   /// 设置缓存数据

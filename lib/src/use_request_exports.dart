@@ -16,3 +16,4 @@ export 'utils/pagination.dart';
 export 'utils/offline.dart';
 export 'utils/dio_adapter.dart';
 export 'utils/cancel_token.dart';
+export 'utils/observer.dart';

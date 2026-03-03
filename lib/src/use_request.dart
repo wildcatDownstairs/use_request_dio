@@ -13,6 +13,7 @@ import 'utils/focus_manager.dart';
 import 'utils/cancel_token.dart';
 import 'utils/cache.dart';
 import 'utils/cache_policy.dart';
+import 'utils/observer.dart';
 import 'utils/dio_adapter.dart' show HttpRequestConfig;
 
 TData? _resolveInitialCachedData<TData, TParams>(
@@ -61,7 +62,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   final stateNotifier = useState(
     UseRequestState<TData, TParams>(
       params: opts.defaultParams,
-      data: initialCachedData,
+      data: initialCachedData ?? opts.initialData,
     ),
   );
 
@@ -346,7 +347,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       opts.onBefore?.call(params);
     }
 
+    // 通知全局观察者
+    UseRequestObserver.instance?.onRequest(key, params);
+
     // 读取缓存
+    TData? cachedData;
     final cacheKey = opts.cacheKey?.call(params);
     if (cacheKey != null && cacheKey.isNotEmpty) {
       // 若有进行中的请求，直接复用
@@ -366,8 +371,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         cacheTime: opts.cacheTime,
         staleTime: opts.staleTime,
       );
-      final cachedData = coordinator.getFresh();
+      cachedData = coordinator.getFresh();
       if (cachedData != null) {
+        UseRequestObserver.instance?.onCacheHit(
+          cacheKey, coordinator.shouldRevalidate(),
+        );
         updateState(
           (s) => s.copyWith(
             loading: false,
@@ -396,10 +404,15 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       );
     } else {
       setLoading(true);
+      // keepPreviousData=false（默认）且参数变化时清除旧数据，避免显示不匹配的数据
+      final shouldClearData = !opts.keepPreviousData &&
+          cachedData == null &&
+          stateNotifier.value.params != params;
       updateState(
         (s) => s.copyWith(
           params: params,
           clearError: true,
+          clearData: shouldClearData,
           requestCount: currentRequestCount,
         ),
       );
@@ -465,6 +478,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       } catch (_) {
         // 回调异常不应中断请求流程
       }
+      UseRequestObserver.instance?.onSuccess(key, mergedResult, params);
 
       // 写入缓存
       if (cacheKey != null && cacheKey.isNotEmpty) {
@@ -488,6 +502,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       } catch (_) {
         // 回调异常不应中断请求流程
       }
+      UseRequestObserver.instance?.onFinally(key, params);
 
       return mergedResult;
     } catch (e) {
@@ -517,6 +532,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       } catch (_) {
         // 回调异常不应中断请求流程
       }
+      UseRequestObserver.instance?.onError(key, e, params);
 
       // 触发完成回调
       try {
@@ -524,6 +540,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       } catch (_) {
         // 回调异常不应中断请求流程
       }
+      UseRequestObserver.instance?.onFinally(key, params);
 
       if (cacheKey != null && cacheKey.isNotEmpty) {
         clearCacheEntry(cacheKey);
@@ -632,20 +649,35 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     unawaited(loadMoreAsync().then<void>((_) {}, onError: (_) {}));
   }
 
-  // 直接修改数据（不触发请求）
+  // 直接修改数据（不触发请求），同步写入全局缓存
   void mutate(TData? Function(TData? oldData)? mutator) {
     if (mutator != null) {
+      final oldData = stateNotifier.value.data;
       updateState((s) {
         final newData = mutator(s.data);
         return s.copyWith(data: newData, clearData: newData == null);
       });
+      final newData = stateNotifier.value.data;
+      // 同步写入全局缓存
+      final lastKey = lastKeyRef.value;
+      if (lastKey != null) {
+        final lastParams = lastParamsMapRef.value[lastKey];
+        if (lastParams != null && opts.cacheKey != null) {
+          final ck = opts.cacheKey!(lastParams as TParams);
+          if (ck.isNotEmpty && newData != null) {
+            setCache<TData>(ck, newData);
+          }
+        }
+        UseRequestObserver.instance?.onMutate(lastKey, oldData, newData);
+      }
     }
   }
 
   // 取消当前请求（取消所有 key 的进行中请求）
   void cancel() {
-    for (final token in cancelTokenMapRef.value.values) {
-      token?.cancel('Request cancelled by user');
+    for (final entry in cancelTokenMapRef.value.entries) {
+      entry.value?.cancel('Request cancelled by user');
+      UseRequestObserver.instance?.onCancel(entry.key);
     }
     loadingDelayControllerRef.value?.endLoading();
     updateState((s) => s.copyWith(loading: false, loadingMore: false));
@@ -911,6 +943,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   // 非手动模式下，挂载后自动请求一次
   useEffect(() {
     if (!opts.manual && opts.ready) {
+      // 如果有待执行的 refreshDeps 回放，跳过自动请求避免同帧重复触发
+      if (pendingRefreshDepsRef.value && opts.refreshDeps != null) return null;
       runIfInvocable(opts.defaultParams);
     }
     return null;
