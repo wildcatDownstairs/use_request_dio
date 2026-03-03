@@ -1,9 +1,21 @@
+> 维护约定：自本版本起，更新日志统一使用简体中文。
+
+## 0.3.3
+
+- 修复：为 `UseRequestObserver` 全部回调增加安全隔离，观察者异常不再影响请求主流程。
+- 修复：`mutate((_) => null)` 时同步清理对应 `RequestCache`，避免状态与缓存不一致。
+- 修复：`UseRequestBuilder.didUpdateWidget` 改为语义比较 options，避免等价配置的无效更新。
+- 修复：`RequestCache.get<T>` 在类型不匹配时不再刷新 LRU 顺序。
+- 新增：`PaginationHelpers.pageParams` 支持 `shouldReset`，可在筛选/刷新场景重置页码计数。
+- 示例：重构 `example/lib/main.dart` 为由易到难的渐进式教学示例（GitHub API、Record 解构、hooks 数据流转）。
+- 测试：新增并补强回归测试，覆盖 observer 异常、`onBefore` 异常、`mutate(null)` 缓存同步、LRU 顺序与 options 等价判定。
+
 ## 0.3.2
 
-- Feat: `UseRequestNotifier` 新增 `updateOptions()` 方法，支持运行时动态更新防抖/节流/轮询间隔等工具参数，不销毁 Notifier、不丢失请求状态。
-- Feat: `UseRequestBuilder` 的 `didUpdateWidget` 在仅 options 变化时调用 `updateOptions()` 而非销毁重建，保留已有数据和轮询状态。
-- Feat: `UseRequestMixin` 同步暴露 `updateOptions()` 便捷方法。
-- Test: 新增 `updateOptions` 状态保持测试。
+- 新增：`UseRequestNotifier` 支持 `updateOptions()`，可在运行时更新防抖/节流/轮询间隔等参数，不销毁 Notifier、不丢失请求状态。
+- 新增：`UseRequestBuilder` 在仅 options 变化时调用 `updateOptions()`，不再销毁重建，保留已有数据与轮询状态。
+- 新增：`UseRequestMixin` 同步暴露 `updateOptions()` 便捷方法。
+- 测试：新增 `updateOptions` 状态保持测试。
 
 ## 0.3.1
 
