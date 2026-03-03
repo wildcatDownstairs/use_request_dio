@@ -1,3 +1,22 @@
+## 0.3.0
+
+- Fix: `RequestCache` 新增 LRU 淘汰策略（默认最大 256 条），防止长时间运行导致内存无限增长（Bug 10）。
+- Fix: `CacheCoordinator` 修正 SWR 语义——只配 `cacheTime` 不配 `staleTime` 时，缓存始终后台刷新（Bug 13）。
+- Fix: 轮询与分页（`loadMoreParams`）同时使用时，轮询优先使用 `defaultParams` 刷新首页，避免覆盖已累积的分页数据（Bug 15）。
+- Feat: `RequestCache.removeWhere()` 支持按模式批量清除缓存（如 `key.startsWith('user-')`）。
+- Fix: `UseRequestState.copyWith` 新增 `clearParams`/`clearHasMore` 标志位（Bug 1）。
+- Fix: `defaultParams` 仅在首次 build 时初始化，不再覆盖用户手动参数（Bug 2）。
+- Fix: `PaginationHelpers.pageParams` 通过内部计数器正确追踪页码（Bug 3）。
+- Fix: `UseRequestMixin.initUseRequest` 新增 `onStateChange` 回调以触发宿主 Widget 重建（Bug 4）。
+- Fix: `loadMore()` 在 `hasMore == false` 时拒绝发起新请求（Bug 5）。
+- Fix: 所有生命周期回调（onSuccess/onError/onFinally）包裹 try-catch，异常不再中断请求流程（Bug 6）。
+- Fix: `bindPendingRequest` 补充 onSuccess/onError/onFinally 回调（Bug 7）。
+- Fix: `UseRequestBuilder` 引入 `serviceKey` 机制，避免闭包引用变化导致无限重建（Bug 8）。
+- Fix: `refreshAsync` 安全类型检查，非空 TParams 场景下回退到 `defaultParams`（Bug 9）。
+- Fix: `cancel()` 取消所有 key 的进行中请求，而非仅最后一个（Bug 11）。
+- Fix: `AppFocusManager` 不再将 `inactive` 状态视为 blur（Bug 12）。
+- Docs: `onBefore` 在 `loadMore` 场景下不触发的行为已补充文档说明（Bug 14）。
+
 ## 0.0.13
 
 - Fix: clear both `loading` and `loadingMore` on cancel, and make Hook/Riverpod consistently support no-params requests across auto-run, `refreshDeps`, polling, focus refresh, and reconnect refresh.

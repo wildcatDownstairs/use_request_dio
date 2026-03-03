@@ -1,5 +1,10 @@
 import 'dart:collection';
 
+/// 全局缓存容量上限（可通过 [RequestCache.maxSize] 调整）。
+///
+/// 当缓存条目数超过此值时，按 LRU（最近最少使用）策略淘汰最旧的条目。
+const int _defaultMaxCacheSize = 256;
+
 // ============================================================================
 // RequestCacheEntry - 缓存条目
 // ============================================================================
@@ -110,9 +115,16 @@ class PendingRequestEntry<T> {
 /// - 这是一个静态单例，整个应用共享同一个缓存
 /// - 缓存存储在内存中，应用重启后会清空
 /// - 对于需要持久化的缓存，请使用 SharedPreferences 或数据库
+/// - 默认最大缓存条目数为 256，超过后按 LRU 策略淘汰，可通过 [maxSize] 调整
 class RequestCache {
-  /// 缓存数据存储（key -> 缓存条目）
-  static final Map<String, RequestCacheEntry<dynamic>> _store = HashMap();
+  /// 最大缓存条目数（超过后按 LRU 策略淘汰最旧条目）
+  ///
+  /// 设为 0 或负数表示不限制。默认值为 256。
+  static int maxSize = _defaultMaxCacheSize;
+
+  /// 缓存数据存储（key -> 缓存条目），使用 LinkedHashMap 维护访问顺序用于 LRU 淘汰
+  static final Map<String, RequestCacheEntry<dynamic>> _store =
+      <String, RequestCacheEntry<dynamic>>{};
 
   /// 进行中的请求存储（key -> 请求条目）
   static final Map<String, PendingRequestEntry<dynamic>> _pending = HashMap();
@@ -147,6 +159,10 @@ class RequestCache {
       }
     }
 
+    // LRU：命中时将条目移到末尾（最近使用）
+    _store.remove(key);
+    _store[key] = entry;
+
     // 类型转换并返回
     return entry as RequestCacheEntry<T>?;
   }
@@ -162,9 +178,21 @@ class RequestCache {
   /// RequestCache.set<User>('user-1', user);
   /// ```
   static void set<T>(String key, T data) {
+    // 若 key 已存在，先移除再插入以更新 LRU 顺序
+    _store.remove(key);
     _store[key] = RequestCacheEntry<T>(data: data, timestamp: DateTime.now());
     // 请求完成后清除 pending（请求已完成，不再需要去重）
     _pending.remove(key);
+    // LRU 淘汰：超过容量上限时移除最旧条目
+    _evictIfNeeded();
+  }
+
+  /// 当缓存超过 [maxSize] 时，移除最早插入（LRU）的条目
+  static void _evictIfNeeded() {
+    if (maxSize <= 0) return; // 不限制
+    while (_store.length > maxSize) {
+      _store.remove(_store.keys.first);
+    }
   }
 
   /// 获取进行中的请求 Future
@@ -246,6 +274,22 @@ class RequestCache {
     _store.clear();
     _pending.clear();
   }
+
+  /// 按模式批量清除缓存
+  ///
+  /// 移除所有匹配 [test] 条件的缓存条目。
+  ///
+  /// ```dart
+  /// // 清除所有 user- 开头的缓存
+  /// RequestCache.removeWhere((key) => key.startsWith('user-'));
+  /// ```
+  static void removeWhere(bool Function(String key) test) {
+    _store.removeWhere((key, _) => test(key));
+    _pending.removeWhere((key, _) => test(key));
+  }
+
+  /// 当前缓存条目数
+  static int get length => _store.length;
 }
 
 // ============================================================================

@@ -156,10 +156,19 @@ class UseRequestNotifier<TData, TParams>
       _pollingController = PollingController<TData>(
         interval: options.pollingInterval!,
         action: () {
+          // 注意：当配置了 loadMoreParams（分页模式）时，轮询使用 defaultParams
+          // 刷新首页数据，而非使用 lastParams（可能是某一页的参数），
+          // 避免轮询覆盖已累积的分页数据。
           if (_lastKey != null) {
-            final params = _lastParamsByKey[_lastKey!];
             if (_hasLastInvocationForKey(_lastKey!)) {
-              return _fetchData(_lastKey!, params as TParams);
+              final TParams params;
+              if (options.loadMoreParams != null &&
+                  options.defaultParams != null) {
+                params = options.defaultParams as TParams;
+              } else {
+                params = _lastParamsByKey[_lastKey!] as TParams;
+              }
+              return _fetchData(_lastKey!, params);
             }
           }
           throw StateError('No params for polling');
@@ -310,6 +319,14 @@ class UseRequestNotifier<TData, TParams>
         );
       }
 
+      // 复用请求同样触发成功和完成回调
+      try {
+        options.onSuccess?.call(mergedResult, params);
+      } catch (_) {}
+      try {
+        options.onFinally?.call(params, mergedResult, null);
+      } catch (_) {}
+
       return mergedResult;
     } catch (e) {
       final latestCount = _requestCounts[key] ?? currentRequestCount;
@@ -326,6 +343,13 @@ class UseRequestNotifier<TData, TParams>
       if (!isStale && !isCancellation && mounted) {
         _loadingDelayController?.endLoading();
         state = state.copyWith(loading: false, loadingMore: false, error: e);
+        // 复用请求同样触发失败和完成回调
+        try {
+          options.onError?.call(e, params);
+        } catch (_) {}
+        try {
+          options.onFinally?.call(params, null, e);
+        } catch (_) {}
       }
 
       return Future.error(e);
@@ -365,6 +389,8 @@ class UseRequestNotifier<TData, TParams>
     _lastKey = key;
 
     // 调用 onBefore 回调
+    // 注意：loadMore 场景下不会触发 onBefore，因为 loadMore 是追加数据操作，
+    // 而非全新请求。如需在 loadMore 前执行逻辑，请在调用 loadMore() 前自行处理。
     if (!isLoadMore) {
       options.onBefore?.call(params);
     }
@@ -477,8 +503,12 @@ class UseRequestNotifier<TData, TParams>
         );
       }
 
-      // 成功回调
-      options.onSuccess?.call(mergedResult, params);
+      // 成功回调（捕获回调异常，确保后续缓存写入和 onFinally 不被跳过）
+      try {
+        options.onSuccess?.call(mergedResult, params);
+      } catch (_) {
+        // 回调异常不应中断请求流程
+      }
 
       // 写入缓存
       if (cacheKey != null && cacheKey.isNotEmpty) {
@@ -496,7 +526,11 @@ class UseRequestNotifier<TData, TParams>
       }
 
       // 完成回调
-      options.onFinally?.call(params, mergedResult, null);
+      try {
+        options.onFinally?.call(params, mergedResult, null);
+      } catch (_) {
+        // 回调异常不应中断请求流程
+      }
 
       return mergedResult;
     } catch (e) {
@@ -520,11 +554,19 @@ class UseRequestNotifier<TData, TParams>
         state = state.copyWith(loading: false, loadingMore: false, error: e);
       }
 
-      // 失败回调
-      options.onError?.call(e, params);
+      // 失败回调（捕获回调异常，确保 onFinally 和缓存清理不被跳过）
+      try {
+        options.onError?.call(e, params);
+      } catch (_) {
+        // 回调异常不应中断请求流程
+      }
 
       // 完成回调
-      options.onFinally?.call(params, null, e);
+      try {
+        options.onFinally?.call(params, null, e);
+      } catch (_) {
+        // 回调异常不应中断请求流程
+      }
 
       if (cacheKey != null && cacheKey.isNotEmpty) {
         clearCacheEntry(cacheKey);
@@ -567,6 +609,19 @@ class UseRequestNotifier<TData, TParams>
       throw StateError('No previous params to refresh with');
     }
     final params = _lastParamsByKey[_lastKey!];
+    // 安全类型检查：当 TParams 为非空类型而 params 为 null 时，
+    // 尝试回退到 defaultParams，避免运行时 _CastError。
+    final resolved = _resolveInvocableParams<TParams>(params);
+    if (!resolved.isValid) {
+      final fallback = _resolveInvocableParams<TParams>(options.defaultParams);
+      if (fallback.isValid) {
+        return runAsync(fallback.params as TParams);
+      }
+      throw StateError(
+        'Cannot refresh: last params ($params) is not a valid $TParams '
+        'and no usable defaultParams available',
+      );
+    }
     return runAsync(params as TParams);
   }
 
@@ -577,6 +632,12 @@ class UseRequestNotifier<TData, TParams>
 
   /// 加载更多（异步）
   Future<TData> loadMoreAsync() {
+    // 如果 hasMore 明确为 false，不再发起请求
+    if (state.hasMore == false) {
+      return Future.error(
+        StateError('没有更多数据可加载（hasMore 为 false）'),
+      );
+    }
     if (_lastKey == null) {
       throw StateError('No previous key to load more with');
     }
@@ -608,10 +669,10 @@ class UseRequestNotifier<TData, TParams>
     }
   }
 
-  /// 取消当前进行中的请求
+  /// 取消当前进行中的请求（取消所有 key 的请求）
   void cancel() {
-    if (_lastKey != null) {
-      _cancelTokens[_lastKey!]?.cancel('Request cancelled by user');
+    for (final token in _cancelTokens.values) {
+      token?.cancel('Request cancelled by user');
     }
     _loadingDelayController?.endLoading();
     if (mounted) {
@@ -757,7 +818,31 @@ createUseRequestProvider<TData, TParams>({
   );
 }
 
-/// 在 ConsumerWidget 中以 Hook 风格使用的 Mixin
+/// 在 ConsumerStatefulWidget 中以 Hook 风格使用的 Mixin
+///
+/// 使用方式：
+/// 1. 在 `initState` 中调用 `initUseRequest`，传入 `setState` 回调以触发 UI 重建
+/// 2. 在 `dispose` 中调用 `disposeUseRequest`
+///
+/// ```dart
+/// class _MyPageState extends ConsumerState<MyPage>
+///     with UseRequestMixin<MyData, MyParams> {
+///   @override
+///   void initState() {
+///     super.initState();
+///     initUseRequest(
+///       ref: ref,
+///       service: myService,
+///       onStateChange: () => setState(() {}),
+///     );
+///   }
+///   @override
+///   void dispose() {
+///     disposeUseRequest();
+///     super.dispose();
+///   }
+/// }
+/// ```
 mixin UseRequestMixin<TData, TParams> {
   late UseRequestNotifier<TData, TParams> _notifier;
   late VoidCallback _removeListener;
@@ -767,6 +852,9 @@ mixin UseRequestMixin<TData, TParams> {
     required WidgetRef ref,
     required Service<TData, TParams> service,
     UseRequestOptions<TData, TParams>? options,
+    /// 状态变化时的回调，通常传入 `() => setState(() {})` 以触发 UI 重建。
+    /// 若不传则 UI 不会自动响应状态变化。
+    VoidCallback? onStateChange,
   }) {
     _notifier = UseRequestNotifier<TData, TParams>(
       service: service,
@@ -775,6 +863,7 @@ mixin UseRequestMixin<TData, TParams> {
     _state = _notifier.currentState;
     _removeListener = _notifier.addListener((s) {
       _state = s;
+      onStateChange?.call();
     });
   }
 
@@ -812,9 +901,21 @@ extension UseRequestResultExtension<TData, TParams>
 }
 
 /// 提供 useRequest 能力的组件
+///
+/// 注意：[service] 参数使用函数引用比较。为避免 parent rebuild 时因闭包引用变化
+/// 导致 notifier 被不必要地销毁重建，建议：
+/// 1. 使用顶层函数或 static 方法作为 service
+/// 2. 或通过 [serviceKey] 显式控制何时重建
 class UseRequestBuilder<TData, TParams> extends ConsumerStatefulWidget {
   final Service<TData, TParams> service;
   final UseRequestOptions<TData, TParams>? options;
+
+  /// 可选的 service 标识 key。
+  /// 当 service 为闭包/匿名函数时，可通过此 key 控制何时重建 notifier。
+  /// 仅当 serviceKey 发生变化时才会销毁旧 notifier 并重建。
+  /// 若为 null，service 变化不会触发重建（避免闭包引用陷阱）。
+  final Object? serviceKey;
+
   final Widget Function(
     BuildContext context,
     UseRequestState<TData, TParams> state,
@@ -826,6 +927,7 @@ class UseRequestBuilder<TData, TParams> extends ConsumerStatefulWidget {
     super.key,
     required this.service,
     this.options,
+    this.serviceKey,
     required this.builder,
   });
 
@@ -865,8 +967,11 @@ class _UseRequestBuilderState<TData, TParams>
   @override
   void didUpdateWidget(covariant UseRequestBuilder<TData, TParams> oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.service != widget.service ||
-        oldWidget.options != widget.options) {
+    // 使用 serviceKey 判断 service 是否需要重建（避免闭包引用陷阱），
+    // 若未提供 serviceKey 则不对 service 变化做判断。
+    final serviceChanged = widget.serviceKey != null &&
+        oldWidget.serviceKey != widget.serviceKey;
+    if (serviceChanged || !identical(oldWidget.options, widget.options)) {
       _removeListener();
       _notifier.dispose();
       _bindNotifier();

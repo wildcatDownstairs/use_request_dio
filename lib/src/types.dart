@@ -42,6 +42,9 @@ typedef Service<TData, TParams> = Future<TData> Function(TParams params);
 /// - 记录请求日志
 /// - 重置错误状态
 ///
+/// **注意**：`loadMore()` 场景下不会触发此回调，因为加载更多是追加数据操作。
+/// 如需在 loadMore 前执行逻辑，请在调用 `loadMore()` 前自行处理。
+///
 /// ```dart
 /// onBefore: (params) {
 ///   print('开始请求，参数: $params');
@@ -1145,6 +1148,8 @@ class UseRequestState<TData, TParams> {
   ///
   /// [clearData] - 是否清除 data（设为 null）
   /// [clearError] - 是否清除 error（设为 null）
+  /// [clearParams] - 是否清除 params（设为 null）
+  /// [clearHasMore] - 是否清除 hasMore（设为 null）
   UseRequestState<TData, TParams> copyWith({
     bool? loading,
     bool? loadingMore,
@@ -1155,15 +1160,17 @@ class UseRequestState<TData, TParams> {
     bool? hasMore,
     bool clearData = false,
     bool clearError = false,
+    bool clearParams = false,
+    bool clearHasMore = false,
   }) {
     return UseRequestState<TData, TParams>(
       loading: loading ?? this.loading,
       loadingMore: loadingMore ?? this.loadingMore,
       data: clearData ? null : (data ?? this.data),
       error: clearError ? null : (error ?? this.error),
-      params: params ?? this.params,
+      params: clearParams ? null : (params ?? this.params),
       requestCount: requestCount ?? this.requestCount,
-      hasMore: hasMore ?? this.hasMore,
+      hasMore: clearHasMore ? null : (hasMore ?? this.hasMore),
     );
   }
 

@@ -58,10 +58,13 @@ class AppFocusManager with WidgetsBindingObserver {
         _handleVisible(true);
         break;
       case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         _handleVisible(false);
+        break;
+      case AppLifecycleState.inactive:
+        // iOS 上接电话、打开通知中心等操作会触发 inactive，
+        // 但用户并未真正离开应用，不应视为 blur。
         break;
     }
   }
