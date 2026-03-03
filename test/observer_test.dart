@@ -43,6 +43,35 @@ class _RecordingObserver extends UseRequestObserver {
   }
 }
 
+class _ThrowingObserver extends UseRequestObserver {
+  @override
+  void onRequest(String key, Object? params) =>
+      throw Exception('observer-onRequest');
+
+  @override
+  void onSuccess(String key, Object? data, Object? params) =>
+      throw Exception('observer-onSuccess');
+
+  @override
+  void onError(String key, Object error, Object? params) =>
+      throw Exception('observer-onError');
+
+  @override
+  void onFinally(String key, Object? params) =>
+      throw Exception('observer-onFinally');
+
+  @override
+  void onCacheHit(String cacheKey, bool isStale) =>
+      throw Exception('observer-onCacheHit');
+
+  @override
+  void onMutate(String key, Object? oldData, Object? newData) =>
+      throw Exception('observer-onMutate');
+
+  @override
+  void onCancel(String key) => throw Exception('observer-onCancel');
+}
+
 void main() {
   setUp(clearAllCache);
 
@@ -92,10 +121,7 @@ void main() {
   test('mutate triggers onMutate', () async {
     final notifier = UseRequestNotifier<String, int>(
       service: (p) async => 'result-$p',
-      options: UseRequestOptions(
-        manual: true,
-        cacheKey: (p) => 'obs-$p',
-      ),
+      options: UseRequestOptions(manual: true, cacheKey: (p) => 'obs-$p'),
     );
 
     await notifier.runAsync(1);
@@ -140,6 +166,27 @@ void main() {
     await notifier.runAsync(1);
     notifier.mutate((old) => 'changed');
     notifier.cancel();
+
+    notifier.dispose();
+  });
+
+  test('observer exceptions do not break request flow', () async {
+    UseRequestObserver.instance = _ThrowingObserver();
+
+    final notifier = UseRequestNotifier<String, int>(
+      service: (p) async => 'result-$p',
+      options: UseRequestOptions(manual: true, cacheKey: (p) => 'obs-throw-$p'),
+    );
+
+    final result = await notifier.runAsync(1);
+    expect(result, 'result-1');
+    expect(notifier.currentState.error, isNull);
+
+    notifier.mutate((old) => null);
+    notifier.cancel();
+
+    // Flow should continue without observer crash leaking to caller.
+    expect(notifier.currentState.loading, false);
 
     notifier.dispose();
   });

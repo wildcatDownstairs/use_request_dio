@@ -33,6 +33,22 @@ void main() {
       final result = RequestCache.get<int>('typed');
       expect(result, isNull);
     });
+
+    test('type mismatch read does not refresh LRU order', () {
+      RequestCache.maxSize = 2;
+      RequestCache.set<String>('a', 'alpha');
+      RequestCache.set<String>('b', 'bravo');
+
+      // Wrong-type read should not count as a valid cache hit for LRU refresh.
+      expect(RequestCache.get<int>('a'), isNull);
+
+      // If LRU order was not refreshed, adding c should evict a (oldest).
+      RequestCache.set<String>('c', 'charlie');
+
+      expect(RequestCache.get<String>('a'), isNull);
+      expect(RequestCache.get<String>('b')?.data, 'bravo');
+      expect(RequestCache.get<String>('c')?.data, 'charlie');
+    });
   });
 
   group('removeWhere', () {
@@ -81,16 +97,19 @@ void main() {
       expect(coordinator.shouldRevalidate(), true);
     });
 
-    test('without staleTime but with cacheTime, shouldRevalidate is always true (SWR)', () {
-      final coordinator = CacheCoordinator<String>(
-        cacheKey: 'swr-test',
-        cacheTime: const Duration(minutes: 5),
-      );
+    test(
+      'without staleTime but with cacheTime, shouldRevalidate is always true (SWR)',
+      () {
+        final coordinator = CacheCoordinator<String>(
+          cacheKey: 'swr-test',
+          cacheTime: const Duration(minutes: 5),
+        );
 
-      coordinator.set('some-data');
-      expect(coordinator.getFresh(), 'some-data');
-      // No staleTime → always revalidate (SWR default behavior)
-      expect(coordinator.shouldRevalidate(), true);
-    });
+        coordinator.set('some-data');
+        expect(coordinator.getFresh(), 'some-data');
+        // No staleTime → always revalidate (SWR default behavior)
+        expect(coordinator.shouldRevalidate(), true);
+      },
+    );
   });
 }
