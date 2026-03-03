@@ -13,7 +13,8 @@
 - macOS 桌面： `flutter run -d macos`
 - iOS 模拟器： `flutter run -d ios` （需安装 Xcode）
 - Android： `flutter run -d android` （需已启动模拟器或连接设备）
-- 示例首页与各功能演示： example/lib/demo/use_request_demo_page.dart:1
+- 示例首页（渐进式教学示例）：`example/lib/main.dart`
+- 历史 Demo 聚合页（保留）：`example/lib/demo/use_request_demo_page.dart`
 
 # useRequest 组件库文档
 
@@ -43,6 +44,9 @@
 - 取消请求：`cancel()` 与自定义 `CancelToken`
 - 数据变更：`mutate()` 直接修改数据不触发请求
 - 回调钩子：`onBefore`、`onSuccess`、`onError`、`onFinally`
+- 观察者机制：`UseRequestObserver` 回调异常会被隔离，不会中断请求主流程
+- 缓存一致性：`mutate((_) => null)` 会同步清理对应 `cacheKey` 的缓存条目
+- 分页辅助：`PaginationHelpers.pageParams` 支持 `shouldReset`，可在筛选/刷新场景重置页码计数
 
 ### 高级功能（v2.0 新增）
 - **HTTP 语义层**：`DioHttpAdapter` 提供 GET/POST/PUT/DELETE/PATCH 等语义化方法
@@ -429,6 +433,7 @@ const UseRequestOptions({
 - 缓存与复用：显式传入 `cacheKey` 开启缓存；`cacheTime` 控制缓存有效期（null 表示不过期），`staleTime` 超时后会在保留缓存的同时重新请求
 - 并发隔离：`fetchKey` 将不同 key 的请求计数/取消令牌隔离；但状态仍是单态，只有最后一次 `run` 的 key（active key）会更新 UI，其它 key 的结果视为被覆盖
 - 加载更多：提供 `loadMoreParams` 生成下一页参数、`dataMerger` 合并数据、`hasMore` 判定是否还有更多；`UseRequestResult` 暴露 `loadingMore`、`hasMore` 与 `loadMore`/`loadMoreAsync`
+- 分页重置：`PaginationHelpers.pageParams(...)` 可通过 `shouldReset` 回调在条件变化时重置到 `startPage`
 - 轮询策略：`pollingWhenHidden=false` 失焦暂停、前台恢复；`pausePollingOnError` 遇错暂停，若设置 `pollingRetryInterval` 会在该间隔后自动尝试恢复；`refreshOnReconnect` + `reconnectStream` 可在网络恢复时刷新
 - 轮询：`pollingInterval` 不为 `null` 时开启（Hook 版自动轮询；Riverpod 版 additionally 提供 `startPolling()`/`stopPolling()`）
 - 频率控制：`debounceInterval` / `throttleInterval` 二选一
@@ -562,8 +567,8 @@ notifier.mutate((old) => old == null ? old : old.copyWith(name: '新名字'));
 
 ## 真实示例（摘自示例文件）
 
-- 完整示例 App 见：`example/lib/main.dart`
-- Demo 首页与各功能示例见：`example/lib/demo/use_request_demo_page.dart`
+- 完整示例 App（由易到难，含 GitHub API + Record 解构）见：`example/lib/main.dart`
+- 历史 Demo 聚合页（保留）见：`example/lib/demo/use_request_demo_page.dart`
 - 具体功能组件示例见：`example/lib/demo/widgets/`
 
 ---
