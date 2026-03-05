@@ -24,7 +24,8 @@ import 'package:example/main.dart';
 
 // ─── HTTP mock ──────────────────────────────────────────────────────────────
 
-const _kSearchJson = '{"total_count":1,"incomplete_results":false,"items":['
+const _kSearchJson =
+    '{"total_count":1,"incomplete_results":false,"items":['
     '{"id":1,"name":"flutter","full_name":"flutter/flutter",'
     '"description":"Flutter SDK","html_url":"https://github.com/flutter/flutter",'
     '"stargazers_count":160000,"language":"Dart",'
@@ -82,13 +83,8 @@ class _MockHttpClient implements HttpClient {
   ) {}
   @override
   set authenticateProxy(
-    Future<bool> Function(
-      String host,
-      int port,
-      String scheme,
-      String? realm,
-    )?
-        f,
+    Future<bool> Function(String host, int port, String scheme, String? realm)?
+    f,
   ) {}
   @override
   set findProxy(String Function(Uri url)? f) {}
@@ -104,8 +100,7 @@ class _MockHttpClient implements HttpClient {
     String host,
     int port,
     String path,
-  ) =>
-      _open(method, Uri.http('$host:$port', path));
+  ) => _open(method, Uri.http('$host:$port', path));
   @override
   Future<HttpClientRequest> openUrl(String method, Uri url) =>
       _open(method, url);
@@ -194,8 +189,9 @@ class _MockHttpClientRequest implements HttpClientRequest {
 class _MockHttpClientResponse extends Stream<List<int>>
     implements HttpClientResponse {
   // Delegate all stream operations to a single-item stream.
-  final Stream<List<int>> _body =
-      Stream<List<int>>.value(utf8.encode(_kSearchJson));
+  final Stream<List<int>> _body = Stream<List<int>>.value(
+    utf8.encode(_kSearchJson),
+  );
 
   @override
   StreamSubscription<List<int>> listen(
@@ -203,13 +199,12 @@ class _MockHttpClientResponse extends Stream<List<int>>
     Function? onError,
     void Function()? onDone,
     bool? cancelOnError,
-  }) =>
-      _body.listen(
-        onData,
-        onError: onError,
-        onDone: onDone,
-        cancelOnError: cancelOnError,
-      );
+  }) => _body.listen(
+    onData,
+    onError: onError,
+    onDone: onDone,
+    cancelOnError: cancelOnError,
+  );
 
   // ── HttpClientResponse ────────────────────────────────────────────────
   @override
@@ -243,8 +238,7 @@ class _MockHttpClientResponse extends Stream<List<int>>
     String? method,
     Uri? url,
     bool? followLoops,
-  ]) =>
-      throw UnimplementedError();
+  ]) => throw UnimplementedError();
 }
 
 class _MockHttpHeaders implements HttpHeaders {
@@ -257,6 +251,7 @@ class _MockHttpHeaders implements HttpHeaders {
     final k = preserveHeaderCase ? name : name.toLowerCase();
     _headers.putIfAbsent(k, () => []).add(value.toString());
   }
+
   @override
   void clear() => _headers.clear();
   @override
@@ -274,11 +269,13 @@ class _MockHttpHeaders implements HttpHeaders {
     final k = preserveHeaderCase ? name : name.toLowerCase();
     _headers[k] = [value.toString()];
   }
+
   @override
   String? value(String name) {
     final vals = _headers[name.toLowerCase()];
     return (vals == null || vals.isEmpty) ? null : vals.first;
   }
+
   @override
   bool chunkedTransferEncoding = false;
   @override
@@ -355,7 +352,9 @@ void _drainException(WidgetTester tester) {
 
 /// Tap [finder] and pump briefly.
 Future<void> _tap(WidgetTester tester, Finder finder) async {
-  await tester.tap(finder);
+  await tester.ensureVisible(finder);
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.tap(finder, warnIfMissed: false);
   await tester.pump(const Duration(milliseconds: 80));
 }
 
@@ -373,8 +372,7 @@ Element? _findSwitchElement(WidgetTester tester, String label) {
       return true;
     });
     if (rowElement == null) continue;
-    final rowFinder =
-        find.byElementPredicate((e) => identical(e, rowElement));
+    final rowFinder = find.byElementPredicate((e) => identical(e, rowElement));
     if (find
         .descendant(of: rowFinder, matching: find.text(label))
         .evaluate()
@@ -389,8 +387,7 @@ Element? _findSwitchElement(WidgetTester tester, String label) {
 Future<bool> _toggleSwitch(WidgetTester tester, String label) async {
   final swElement = _findSwitchElement(tester, label);
   if (swElement == null) return false;
-  final swFinder =
-      find.byElementPredicate((e) => identical(e, swElement));
+  final swFinder = find.byElementPredicate((e) => identical(e, swElement));
   await tester.ensureVisible(swFinder);
   await tester.pump(const Duration(milliseconds: 50));
   await tester.tap(swFinder, warnIfMissed: false);
@@ -409,7 +406,7 @@ bool _switchValue(WidgetTester tester, String label) {
 Future<void> _goToLevel(WidgetTester tester, String fragment) async {
   final btn = find.textContaining(fragment);
   if (btn.evaluate().isNotEmpty) {
-    await tester.tap(btn.first);
+    await _tap(tester, btn.first);
     await _pump(tester);
     _drainException(tester);
   }
@@ -428,8 +425,11 @@ void main() {
     testWidgets('shows 4 level navigation buttons', (tester) async {
       await _boot(tester);
       for (final level in ['Level 1', 'Level 2', 'Level 3', 'Level 4']) {
-        expect(find.textContaining(level), findsWidgets,
-            reason: '$level nav button should be present');
+        expect(
+          find.textContaining(level),
+          findsWidgets,
+          reason: '$level nav button should be present',
+        );
       }
     });
 
@@ -533,7 +533,12 @@ void main() {
       await boot(tester);
       final sliders = find.byType(Slider);
       expect(sliders, findsWidgets);
-      await tester.drag(sliders.first, const Offset(30, 0));
+      await tester.ensureVisible(sliders.first);
+      await tester.drag(
+        sliders.first,
+        const Offset(30, 0),
+        warnIfMissed: false,
+      );
       await tester.pump(const Duration(milliseconds: 80));
       expect(find.byType(Scaffold), findsWidgets);
       _drainException(tester);
@@ -556,10 +561,10 @@ void main() {
       await boot(tester);
       final dropdowns = find.byType(DropdownButtonFormField<String>);
       if (dropdowns.evaluate().isNotEmpty) {
-        await tester.tap(dropdowns.first);
+        await _tap(tester, dropdowns.first);
         await tester.pump(const Duration(milliseconds: 200));
         expect(find.byType(Scaffold), findsWidgets);
-        await tester.tap(find.byType(Scaffold).first, warnIfMissed: false);
+        await _tap(tester, find.byType(Scaffold).first);
         await tester.pump(const Duration(milliseconds: 200));
       }
       _drainException(tester);
@@ -601,20 +606,21 @@ void main() {
       await boot(tester);
       final throttle = find.text('Throttle');
       if (throttle.evaluate().isNotEmpty) {
-        await tester.tap(throttle.first);
+        await _tap(tester, throttle.first);
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(find.byType(Scaffold), findsWidgets);
       _drainException(tester);
     });
 
-    testWidgets('Debounce → Throttle → Debounce cycle keeps app alive',
-        (tester) async {
+    testWidgets('Debounce → Throttle → Debounce cycle keeps app alive', (
+      tester,
+    ) async {
       await boot(tester);
       for (final label in ['Throttle', 'Debounce']) {
         final btn = find.text(label);
         if (btn.evaluate().isNotEmpty) {
-          await tester.tap(btn.first);
+          await _tap(tester, btn.first);
           await tester.pump(const Duration(milliseconds: 100));
         }
       }
@@ -646,12 +652,13 @@ void main() {
       _drainException(tester);
     });
 
-    testWidgets('debounceMaxWait switch appears in Debounce mode',
-        (tester) async {
+    testWidgets('debounceMaxWait switch appears in Debounce mode', (
+      tester,
+    ) async {
       await boot(tester);
       final debounce = find.text('Debounce');
       if (debounce.evaluate().isNotEmpty) {
-        await tester.tap(debounce.first);
+        await _tap(tester, debounce.first);
         await tester.pump(const Duration(milliseconds: 80));
       }
       expect(find.text('debounceMaxWait'), findsWidgets);
@@ -662,7 +669,12 @@ void main() {
       await boot(tester);
       final sliders = find.byType(Slider);
       if (sliders.evaluate().isNotEmpty) {
-        await tester.drag(sliders.first, const Offset(20, 0));
+        await tester.ensureVisible(sliders.first);
+        await tester.drag(
+          sliders.first,
+          const Offset(20, 0),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 80));
       }
       expect(find.byType(Scaffold), findsWidgets);
@@ -678,7 +690,7 @@ void main() {
       }
       final throttle = find.text('Throttle');
       if (throttle.evaluate().isNotEmpty) {
-        await tester.tap(throttle.first);
+        await _tap(tester, throttle.first);
         await tester.pump(const Duration(milliseconds: 500));
       }
       expect(find.byType(Scaffold), findsWidgets);
@@ -758,7 +770,9 @@ void main() {
       _drainException(tester);
     });
 
-    testWidgets('pollingEnabled off → on → off keeps app alive', (tester) async {
+    testWidgets('pollingEnabled off → on → off keeps app alive', (
+      tester,
+    ) async {
       await boot(tester);
       await _toggleSwitch(tester, 'pollingEnabled');
       await _pump(tester);
@@ -791,7 +805,9 @@ void main() {
       _drainException(tester);
     });
 
-    testWidgets('pollingWhenHidden switch initial value is true', (tester) async {
+    testWidgets('pollingWhenHidden switch initial value is true', (
+      tester,
+    ) async {
       await boot(tester);
       expect(_switchValue(tester, 'pollingWhenHidden'), isTrue);
     });
@@ -808,7 +824,12 @@ void main() {
       final sliders = find.byType(Slider);
       expect(sliders, findsWidgets);
       if (sliders.evaluate().length >= 3) {
-        await tester.drag(sliders.at(2), const Offset(10, 0));
+        await tester.ensureVisible(sliders.at(2));
+        await tester.drag(
+          sliders.at(2),
+          const Offset(10, 0),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 80));
       }
       expect(find.byType(Scaffold), findsWidgets);
@@ -819,10 +840,10 @@ void main() {
       await boot(tester);
       final dropdowns = find.byType(DropdownButtonFormField<String>);
       if (dropdowns.evaluate().isNotEmpty) {
-        await tester.tap(dropdowns.first);
+        await _tap(tester, dropdowns.first);
         await tester.pump(const Duration(milliseconds: 200));
         expect(find.byType(Scaffold), findsWidgets);
-        await tester.tap(find.byType(Scaffold).first, warnIfMissed: false);
+        await _tap(tester, find.byType(Scaffold).first);
         await tester.pump(const Duration(milliseconds: 100));
       }
       _drainException(tester);
@@ -920,7 +941,9 @@ void main() {
     });
 
     // ── 依赖刷新 ──────────────────────────────────────────────────────────
-    testWidgets('deps +1 button increments counter from 0 to 1', (tester) async {
+    testWidgets('deps +1 button increments counter from 0 to 1', (
+      tester,
+    ) async {
       await boot(tester);
       final btn = find.textContaining('deps +1');
       if (btn.evaluate().isNotEmpty) {
@@ -964,8 +987,9 @@ void main() {
       expect(_switchValue(tester, 'pollingInterval'), isFalse);
     });
 
-    testWidgets('polling switch: on → off round-trip keeps app alive',
-        (tester) async {
+    testWidgets('polling switch: on → off round-trip keeps app alive', (
+      tester,
+    ) async {
       await boot(tester);
       await _toggleSwitch(tester, 'pollingInterval');
       await _pump(tester);
@@ -983,7 +1007,9 @@ void main() {
       _drainException(tester);
     });
 
-    testWidgets('resumePolling button in L4 taps without crash', (tester) async {
+    testWidgets('resumePolling button in L4 taps without crash', (
+      tester,
+    ) async {
       await boot(tester);
       final btn = find.text('resumePolling');
       if (btn.evaluate().isNotEmpty) await _tap(tester, btn.first);
@@ -1012,20 +1038,21 @@ void main() {
       await boot(tester);
       final throttle = find.text('Throttle');
       if (throttle.evaluate().isNotEmpty) {
-        await tester.tap(throttle.first);
+        await _tap(tester, throttle.first);
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(find.byType(Scaffold), findsWidgets);
       _drainException(tester);
     });
 
-    testWidgets('Debounce → Throttle → Debounce cycle keeps app alive',
-        (tester) async {
+    testWidgets('Debounce → Throttle → Debounce cycle keeps app alive', (
+      tester,
+    ) async {
       await boot(tester);
       for (final label in ['Throttle', 'Debounce', 'Throttle']) {
         final btn = find.text(label);
         if (btn.evaluate().isNotEmpty) {
-          await tester.tap(btn.first);
+          await _tap(tester, btn.first);
           await tester.pump(const Duration(milliseconds: 80));
         }
       }
@@ -1151,8 +1178,9 @@ void main() {
       _drainException(tester);
     });
 
-    testWidgets('enabling externalCancelEnabled reveals cancel button',
-        (tester) async {
+    testWidgets('enabling externalCancelEnabled reveals cancel button', (
+      tester,
+    ) async {
       await boot(tester);
       await _toggleSwitch(tester, 'externalCancelEnabled');
       await tester.pump(const Duration(milliseconds: 80));
@@ -1160,8 +1188,9 @@ void main() {
       _drainException(tester);
     });
 
-    testWidgets('external cancelToken.cancel() taps without crash',
-        (tester) async {
+    testWidgets('external cancelToken.cancel() taps without crash', (
+      tester,
+    ) async {
       await boot(tester);
       await _toggleSwitch(tester, 'externalCancelEnabled');
       await tester.pump(const Duration(milliseconds: 80));
@@ -1211,8 +1240,9 @@ void main() {
       _drainException(tester);
     });
 
-    testWidgets('refreshOnReconnect switch + 模拟重连事件 keeps app alive',
-        (tester) async {
+    testWidgets('refreshOnReconnect switch + 模拟重连事件 keeps app alive', (
+      tester,
+    ) async {
       await boot(tester);
       await _toggleSwitch(tester, 'refreshOnReconnect');
       await tester.pump(const Duration(milliseconds: 80));
@@ -1229,26 +1259,33 @@ void main() {
       await boot(tester);
       final sliders = find.byType(Slider);
       if (sliders.evaluate().isNotEmpty) {
-        await tester.drag(sliders.first, const Offset(20, 0));
+        await tester.ensureVisible(sliders.first);
+        await tester.drag(
+          sliders.first,
+          const Offset(20, 0),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 80));
       }
       expect(find.byType(Scaffold), findsWidgets);
       _drainException(tester);
     });
 
-    testWidgets('manual mode: enabling manual then run(page=1) keeps app alive',
-        (tester) async {
-      await boot(tester);
-      await _toggleSwitch(tester, 'manual');
-      await tester.pump(const Duration(milliseconds: 80));
-      final btn = find.text('run(page=1)');
-      if (btn.evaluate().isNotEmpty) {
-        await _tap(tester, btn.first);
-        await _pump(tester);
-      }
-      expect(find.byType(Scaffold), findsWidgets);
-      _drainException(tester);
-    });
+    testWidgets(
+      'manual mode: enabling manual then run(page=1) keeps app alive',
+      (tester) async {
+        await boot(tester);
+        await _toggleSwitch(tester, 'manual');
+        await tester.pump(const Duration(milliseconds: 80));
+        final btn = find.text('run(page=1)');
+        if (btn.evaluate().isNotEmpty) {
+          await _tap(tester, btn.first);
+          await _pump(tester);
+        }
+        expect(find.byType(Scaffold), findsWidgets);
+        _drainException(tester);
+      },
+    );
   });
 
   // ── Cross-level interactions ──────────────────────────────────────────────
@@ -1257,13 +1294,17 @@ void main() {
       await _boot(tester);
       for (final level in ['Level 2', 'Level 3', 'Level 4', 'Level 1']) {
         await _goToLevel(tester, level);
-        expect(find.byType(Scaffold), findsWidgets,
-            reason: 'After navigating to $level');
+        expect(
+          find.byType(Scaffold),
+          findsWidgets,
+          reason: 'After navigating to $level',
+        );
       }
     });
 
-    testWidgets('L1 refresh then navigate to L3 keeps app alive',
-        (tester) async {
+    testWidgets('L1 refresh then navigate to L3 keeps app alive', (
+      tester,
+    ) async {
       await _boot(tester);
       final btn = find.text('refresh()');
       if (btn.evaluate().isNotEmpty) {
@@ -1275,8 +1316,9 @@ void main() {
       _drainException(tester);
     });
 
-    testWidgets('L4 switches then navigate back to L1 keeps app alive',
-        (tester) async {
+    testWidgets('L4 switches then navigate back to L1 keeps app alive', (
+      tester,
+    ) async {
       await _boot(tester);
       await _goToLevel(tester, 'Level 4');
       await _toggleSwitch(tester, 'manual');
