@@ -6,8 +6,10 @@ English | [简体中文](README.md)
 [![pub points](https://img.shields.io/pub/points/use_request)](https://pub.dev/packages/use_request/score)
 [![popularity](https://img.shields.io/pub/popularity/use_request)](https://pub.dev/packages/use_request/score)
 [![Flutter CI](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml/badge.svg)](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml)
+[![Web Demo](https://img.shields.io/badge/Web%20Demo-GitHub%20Pages-0ea5a4)](https://wildcatdownstairs.github.io/use_request_dio/)
 
 # Demo
+- Live demo (GitHub Pages): https://wildcatdownstairs.github.io/use_request_dio/
 - Install deps in example: `cd example && flutter pub get`
 - Run on your target platform:
   - Web (Chrome): `flutter run -d chrome`
@@ -15,6 +17,26 @@ English | [简体中文](README.md)
   - iOS simulator: `flutter run -d ios` (requires Xcode)
   - Android: `flutter run -d android` (emulator/device)
 - Demo home & feature pages: `example/lib/demo/use_request_demo_page.dart`
+
+## For LLM Agents
+
+### For humans (copy and send to your agent)
+
+After you send this prompt, the agent will:  
+1. install/configure `use_request` in your current project;  
+2. pick and migrate one smallest network module as a PoC;  
+3. report what changed and whether to expand migration.
+
+```text
+Please follow this guide in my current project (not in use_request package repo), install use_request, and migrate one smallest network module first:
+https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/docs/llm-agent-quickstart.zh-CN.md
+```
+
+### For LLM agents (fetch and execute)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/docs/llm-agent-quickstart.zh-CN.md
+```
 
 # useRequest
 
