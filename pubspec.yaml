@@ -3,6 +3,7 @@ description: "A Flutter useRequest-style async request management library based 
 version: 0.3.4
 homepage: https://github.com/wildcatDownstairs/use_request_dio
 repository: https://github.com/wildcatDownstairs/use_request_dio
+documentation: https://wildcatdownstairs.github.io/use_request_dio/
 issue_tracker: https://github.com/wildcatDownstairs/use_request_dio/issues
 topics:
   - hooks
