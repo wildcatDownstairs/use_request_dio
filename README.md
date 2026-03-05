@@ -6,8 +6,10 @@
 [![pub points](https://img.shields.io/pub/points/use_request)](https://pub.dev/packages/use_request/score)
 [![popularity](https://img.shields.io/pub/popularity/use_request)](https://pub.dev/packages/use_request/score)
 [![Flutter CI](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml/badge.svg)](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml)
+[![Web Demo](https://img.shields.io/badge/Web%20Demo-GitHub%20Pages-0ea5a4)](https://wildcatdownstairs.github.io/use_request_dio/)
 
 # demo
+- 在线体验（GitHub Pages）：https://wildcatdownstairs.github.io/use_request_dio/
 - 进入示例目录并安装依赖： `cd example && flutter pub get`
 - 按平台启动：
 - Web（Chrome）： `flutter run -d chrome`
@@ -16,6 +18,27 @@
 - Android： `flutter run -d android` （需已启动模拟器或连接设备）
 - 示例首页（渐进式教学示例）：`example/lib/main.dart`
 - 历史 Demo 聚合页（保留）：`example/lib/demo/use_request_demo_page.dart`
+
+## 给 LLM Agent 看的
+
+### 给人类看的（复制给 Agent）
+
+把下面这段发给你的 Agent（Codex / Claude Code / Cursor 等）。  
+复制后，Agent 会做三件事：  
+1. 在你当前项目安装/配置 `use_request` 依赖；  
+2. 自动挑选并试点改造 1 个“最小网络请求模块”；  
+3. 输出改造结果与是否继续扩展的建议。
+
+```text
+Please follow this guide in my current project (not in use_request package repo), install use_request, and migrate one smallest network module first:
+https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/docs/llm-agent-quickstart.zh-CN.md
+```
+
+### 给 LLM Agent 看的（直接执行）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/docs/llm-agent-quickstart.zh-CN.md
+```
 
 # useRequest 组件库文档
 
