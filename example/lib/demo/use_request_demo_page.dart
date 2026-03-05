@@ -9,6 +9,8 @@ import 'widgets/retry_demo.dart';
 import 'widgets/cache_demo.dart';
 import 'widgets/pagination_demo.dart';
 import 'widgets/http_methods_demo.dart';
+import 'widgets/options_lab_demo.dart';
+import 'widgets/rate_control_demo.dart';
 
 /// useRequest 功能演示主页面
 class UseRequestDemoPage extends ConsumerStatefulWidget {
@@ -79,6 +81,21 @@ class _UseRequestDemoPageState extends ConsumerState<UseRequestDemoPage> {
       icon: Icons.http,
       description: 'GET/POST/PUT/DELETE/PATCH',
       widget: const HttpMethodsDemo(),
+      key: GlobalKey(),
+    ),
+    DemoSection(
+      title: 'Options 实验室',
+      icon: Icons.science_outlined,
+      description:
+          'ready / initialData / keepPreviousData / loadingDelay / refreshDeps / mutate / cancel',
+      widget: const OptionsLabDemo(),
+      key: GlobalKey(),
+    ),
+    DemoSection(
+      title: '频率控制进阶',
+      icon: Icons.speed,
+      description: '防抖高级选项(leading/trailing/maxWait) + 节流(throttle)',
+      widget: const RateControlDemo(),
       key: GlobalKey(),
     ),
   ];
