@@ -293,8 +293,8 @@ class HttpRequestConfig {
   /// useRequest 内部多处依赖参数对象的 `==`（如 keepPreviousData 的参数
   /// 变化判断），因此按请求语义比较字段：path、method、data（Map/List 做
   /// 浅比较）、queryParameters、headers、超时、responseType、contentType。
-  /// 回调（onSendProgress 等）、extra、cancelToken 不参与比较——它们不改变
-  /// “这是不是同一个请求”的语义，且闭包在 inline 构造时每次引用都不同。
+  /// 进度回调与 cancelToken 不参与比较；[Options] 中会影响实际请求的字段
+  /// 参与比较，避免 headers、responseType 等变化被误判为相同请求。
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
@@ -308,7 +308,8 @@ class HttpRequestConfig {
         other.receiveTimeout == receiveTimeout &&
         other.sendTimeout == sendTimeout &&
         other.responseType == responseType &&
-        other.contentType == contentType;
+        other.contentType == contentType &&
+        _optionsEquals(other.extra, extra);
   }
 
   @override
@@ -328,6 +329,31 @@ class HttpRequestConfig {
     if (a is Map && b is Map) return mapEquals(a, b);
     if (a is List && b is List) return listEquals(a, b);
     return a == b;
+  }
+
+  /// 比较 Dio [Options] 中会参与 RequestOptions 合并的字段。
+  ///
+  /// Map 做一层值比较；编码器、解码器和 validateStatus 属于行为配置，只有
+  /// 引用相同时才视为相等，避免不同函数实现被错误合并。
+  static bool _optionsEquals(Options? a, Options? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return false;
+    return a.method == b.method &&
+        a.sendTimeout == b.sendTimeout &&
+        a.receiveTimeout == b.receiveTimeout &&
+        mapEquals(a.extra, b.extra) &&
+        mapEquals(a.headers, b.headers) &&
+        a.preserveHeaderCase == b.preserveHeaderCase &&
+        a.responseType == b.responseType &&
+        a.contentType == b.contentType &&
+        identical(a.validateStatus, b.validateStatus) &&
+        a.receiveDataWhenStatusError == b.receiveDataWhenStatusError &&
+        a.followRedirects == b.followRedirects &&
+        a.maxRedirects == b.maxRedirects &&
+        a.persistentConnection == b.persistentConnection &&
+        identical(a.requestEncoder, b.requestEncoder) &&
+        identical(a.responseDecoder, b.responseDecoder) &&
+        a.listFormat == b.listFormat;
   }
 }
 

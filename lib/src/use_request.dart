@@ -76,6 +76,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     ),
   );
 
+  // PollingController 不是响应式对象，单独保存其运行状态。
+  // 控制器通过 onStateChange 更新该值，使 pause/resume 后立即重建 UI。
+  final pollingActiveState = useState(false);
+
   // 请求取消令牌（按 key）
   final cancelTokenMapRef = useRef<Map<String, CancelToken?>>({});
 
@@ -332,32 +336,6 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     final currentRequestCount = (requestCountMapRef.value[key] ?? 0) + 1;
     requestCountMapRef.value[key] = currentRequestCount;
 
-    // 创建新的取消令牌（按 key）
-    cancelTokenMapRef.value[key]?.cancel('New request started');
-    final cancelToken = createLinkedCancelToken(opts.cancelToken);
-    cancelTokenMapRef.value[key] = cancelToken;
-
-    // If the params is HttpRequestConfig, merge default timeouts from options
-    // and inject the internal cancel token so that cancel() aborts the Dio call.
-    // This makes UseRequestOptions.connectTimeout/receiveTimeout/sendTimeout effective
-    // for DioHttpAdapter + HttpRequestConfig scenarios.
-    final TParams callParams = params is HttpRequestConfig
-        ? (params as HttpRequestConfig).copyWith(
-                connectTimeout:
-                    (params as HttpRequestConfig).connectTimeout ??
-                    opts.connectTimeout,
-                receiveTimeout:
-                    (params as HttpRequestConfig).receiveTimeout ??
-                    opts.receiveTimeout,
-                sendTimeout:
-                    (params as HttpRequestConfig).sendTimeout ??
-                    opts.sendTimeout,
-                cancelToken:
-                    (params as HttpRequestConfig).cancelToken ?? cancelToken,
-              )
-              as TParams
-        : params;
-
     // 记录当前参数与 key 用于刷新
     lastParamsMapRef.value[key] = params;
     lastKeyRef.value = key;
@@ -381,6 +359,18 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       // 若有进行中的请求，直接复用
       final pending = getPendingCache<TData>(cacheKey);
       if (pending != null) {
+        // pending 可能属于当前 Hook，也可能来自另一个相同 cacheKey 的实例。
+        // 不能在复用前取消旧令牌，否则会把这个 pending Future 一并取消。
+        final existingToken = cancelTokenMapRef.value[key];
+        if (existingToken == null || existingToken.isCancelled) {
+          final configToken = params is HttpRequestConfig
+              ? params.cancelToken
+              : null;
+          cancelTokenMapRef.value[key] = createLinkedCancelToken(
+            opts.cancelToken,
+            configToken,
+          );
+        }
         return bindPendingRequest(
           pending,
           key,
@@ -417,6 +407,25 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         }
       }
     }
+
+    // 只有确定要发起新请求后才取消当前 key 的旧请求。命中 pending 时必须
+    // 保留原请求，因为本次调用会直接复用它。
+    cancelTokenMapRef.value[key]?.cancel('New request started');
+    final configToken = params is HttpRequestConfig ? params.cancelToken : null;
+    final cancelToken = createLinkedCancelToken(opts.cancelToken, configToken);
+    cancelTokenMapRef.value[key] = cancelToken;
+
+    // HttpRequestConfig 始终使用内部令牌。配置令牌与 options 令牌都关联到
+    // 内部令牌，因此任一外部令牌或 result.cancel() 均可中断 Dio 请求。
+    final TParams callParams = params is HttpRequestConfig
+        ? params.copyWith(
+                connectTimeout: params.connectTimeout ?? opts.connectTimeout,
+                receiveTimeout: params.receiveTimeout ?? opts.receiveTimeout,
+                sendTimeout: params.sendTimeout ?? opts.sendTimeout,
+                cancelToken: cancelToken,
+              )
+              as TParams
+        : params;
 
     // 进入 loading 状态
     if (isLoadMore) {
@@ -801,6 +810,9 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     () {
       pollingRetryTimerRef.value?.cancel();
       pollingRetryTimerRef.value = null;
+      // effect 重新执行表示旧控制器已由 cleanup 释放；先同步为停止状态，
+      // 后续新控制器若满足启动条件会通过 onStateChange 再更新为 true。
+      pollingActiveState.value = false;
 
       if (opts.pollingInterval == null) {
         pollingControllerRef.value?.dispose();
@@ -811,6 +823,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       late final PollingController<TData> controller;
       controller = PollingController<TData>(
         interval: opts.pollingInterval!,
+        onStateChange: (isPolling) {
+          if (isMountedRef.value) {
+            pollingActiveState.value = isPolling;
+          }
+        },
         action: () {
           // 通过 optsRef/fetchDataRef 读取最新一帧的配置与实现，
           // 避免长生命周期的轮询回调捕获旧闭包（stale closure）。
@@ -996,10 +1013,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     error: stateNotifier.value.error,
     params: stateNotifier.value.params,
     hasMore: stateNotifier.value.hasMore,
-    // 直接派生自控制器状态，避免影子布尔与真实状态脱节。
-    // 注意：ref 变更不触发 rebuild，pause/resume 后的值在下一次
-    // state 变化引起的 rebuild 时才反映到 UI。
-    isPolling: pollingControllerRef.value?.isRunning ?? false,
+    isPolling: pollingActiveState.value,
     runAsync: runAsync,
     run: run,
     refreshAsync: refreshAsync,

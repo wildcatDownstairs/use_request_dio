@@ -11,6 +11,8 @@
 // BUG-12 fresh 缓存命中时观察者 onRequest/onFinally 应配对
 // BUG-13 HttpRequestConfig 值语义相等
 // BUG-17 isPolling 派生自轮询控制器真实状态
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -217,8 +219,90 @@ void main() {
       expect(tags.last, 'new', reason: '轮询应使用最新一帧的 onSuccess');
       expect(result.isPolling, isTrue);
 
+      result.pausePolling();
+      await tester.pump();
+      expect(result.isPolling, isFalse, reason: '暂停轮询后应立即更新返回状态');
+
+      result.resumePolling();
+      await tester.pump();
+      expect(result.isPolling, isTrue, reason: '恢复轮询后应立即更新返回状态');
+
       // 卸载以清理轮询定时器
       await tester.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
+  group('UseRequestBuilder 动态监听配置', () {
+    testWidgets('动态启用 refreshOnFocus 后前台恢复会刷新', (tester) async {
+      var callCount = 0;
+      final notifier = UseRequestNotifier<String, int>(
+        service: (p) async {
+          callCount++;
+          return 'V$p';
+        },
+        options: const UseRequestOptions(defaultParams: 1),
+      );
+      await tester.pump();
+      expect(callCount, 1);
+
+      notifier.updateOptions(
+        const UseRequestOptions(defaultParams: 1, refreshOnFocus: true),
+      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump();
+
+      expect(callCount, 2);
+      notifier.dispose();
+    });
+
+    test('动态启用、替换和关闭 reconnectStream 均立即生效', () async {
+      var callCount = 0;
+      final firstStream = StreamController<bool>.broadcast();
+      final secondStream = StreamController<bool>.broadcast();
+      final notifier = UseRequestNotifier<String, int>(
+        service: (p) async {
+          callCount++;
+          return 'V$p';
+        },
+        options: const UseRequestOptions(defaultParams: 1),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(callCount, 1);
+
+      notifier.updateOptions(
+        UseRequestOptions(
+          defaultParams: 1,
+          refreshOnReconnect: true,
+          reconnectStream: firstStream.stream,
+        ),
+      );
+      firstStream.add(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(callCount, 2);
+
+      notifier.updateOptions(
+        UseRequestOptions(
+          defaultParams: 1,
+          refreshOnReconnect: true,
+          reconnectStream: secondStream.stream,
+        ),
+      );
+      firstStream.add(true);
+      secondStream.add(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(callCount, 3, reason: '旧 stream 应取消订阅，新 stream 应触发刷新');
+
+      notifier.updateOptions(const UseRequestOptions(defaultParams: 1));
+      secondStream.add(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(callCount, 3);
+
+      notifier.dispose();
+      await firstStream.close();
+      await secondStream.close();
     });
   });
 
@@ -315,6 +399,29 @@ void main() {
       expect(
         HttpRequestConfig(path: '/a', cancelToken: CancelToken()),
         HttpRequestConfig(path: '/a', cancelToken: CancelToken()),
+      );
+
+      expect(
+        HttpRequestConfig(
+          path: '/a',
+          extra: Options(headers: {'x-id': '1'}),
+        ),
+        HttpRequestConfig(
+          path: '/a',
+          extra: Options(headers: {'x-id': '1'}),
+        ),
+      );
+      expect(
+        HttpRequestConfig(
+          path: '/a',
+          extra: Options(headers: {'x-id': '1'}),
+        ),
+        isNot(
+          HttpRequestConfig(
+            path: '/a',
+            extra: Options(headers: {'x-id': '2'}),
+          ),
+        ),
       );
     });
   });

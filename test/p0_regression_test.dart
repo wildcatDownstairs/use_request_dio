@@ -39,9 +39,7 @@ void main() {
               // options 与 defaultParams 均在 build 中内联构造
               final result = useRequest<String, _NoEqualityParams?>(
                 service,
-                options: UseRequestOptions(
-                  defaultParams: _NoEqualityParams(1),
-                ),
+                options: UseRequestOptions(defaultParams: _NoEqualityParams(1)),
               );
               return Text(result.data ?? 'loading');
             },
@@ -62,16 +60,19 @@ void main() {
   group('BUG-2 pending 缓存的失败请求', () {
     test('失败的 pending 请求不产生未处理异步异常，且清理 pending 条目', () async {
       Object? unhandled;
-      await runZonedGuarded(() async {
-        final completer = Completer<String>();
-        setPendingCache<String>('p0-bug2', completer.future);
-        // 模拟 fetchData 中真正 await 该 future 的调用方
-        unawaited(completer.future.then((_) {}, onError: (_) {}));
-        completer.completeError(StateError('boom'));
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }, (e, s) {
-        unhandled = e;
-      });
+      await runZonedGuarded(
+        () async {
+          final completer = Completer<String>();
+          setPendingCache<String>('p0-bug2', completer.future);
+          // 模拟 fetchData 中真正 await 该 future 的调用方
+          unawaited(completer.future.then((_) {}, onError: (_) {}));
+          completer.completeError(StateError('boom'));
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        },
+        (e, s) {
+          unhandled = e;
+        },
+      );
 
       expect(unhandled, isNull);
       // 失败后 pending 条目应被清理
@@ -127,14 +128,15 @@ void main() {
       expect(find.text('idle'), findsOneWidget);
     });
 
-    testWidgets('Hook 版：用户显式设置的 token 不被内部 token 覆盖', (tester) async {
+    testWidgets('Hook 版：显式 token 与 result.cancel() 都能取消请求', (tester) async {
       final userToken = CancelToken();
       CancelToken? received;
       late UseRequestResult<String, HttpRequestConfig> result;
+      final gate = Completer<String>();
 
-      Future<String> service(HttpRequestConfig config) async {
+      Future<String> service(HttpRequestConfig config) {
         received = config.cancelToken;
-        return 'ok';
+        return gate.future;
       }
 
       await tester.pumpWidget(
@@ -154,7 +156,45 @@ void main() {
       result.run(HttpRequestConfig(path: '/x', cancelToken: userToken));
       await tester.pump();
 
-      expect(identical(received, userToken), isTrue);
+      expect(received, isNotNull);
+      expect(identical(received, userToken), isFalse);
+
+      result.cancel();
+      expect(received!.isCancelled, isTrue);
+      expect(userToken.isCancelled, isFalse, reason: '内部取消不应让外部 token 永久失效');
+
+      gate.complete('late');
+      await tester.pump();
+    });
+
+    testWidgets('Hook 版：显式 token 主动取消会传递到内部 token', (tester) async {
+      final userToken = CancelToken();
+      CancelToken? received;
+      final gate = Completer<String>();
+      late UseRequestResult<String, HttpRequestConfig> result;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HookBuilder(
+            builder: (context) {
+              result = useRequest<String, HttpRequestConfig>((config) {
+                received = config.cancelToken;
+                return gate.future;
+              }, options: const UseRequestOptions(manual: true));
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      result.run(HttpRequestConfig(path: '/x', cancelToken: userToken));
+      await tester.pump();
+
+      userToken.cancel('external');
+      await tester.pump();
+      expect(received!.isCancelled, isTrue);
+
+      gate.complete('late');
+      await tester.pump();
     });
 
     test('Riverpod 版：notifier.cancel() 取消注入的 token，迟到结果不进状态', () async {
@@ -182,6 +222,36 @@ void main() {
 
       notifier.dispose();
     });
+
+    test('相同 cacheKey 的并发调用复用 pending 时不会取消底层请求', () async {
+      var callCount = 0;
+      CancelToken? received;
+      final gate = Completer<String>();
+      final notifier = UseRequestNotifier<String, HttpRequestConfig>(
+        service: (config) {
+          callCount++;
+          received = config.cancelToken;
+          return gate.future;
+        },
+        options: UseRequestOptions(
+          manual: true,
+          cacheKey: (config) => config.path,
+        ),
+      );
+
+      final first = notifier.runAsync(HttpRequestConfig.get('/same'));
+      await Future<void>.delayed(Duration.zero);
+      final second = notifier.runAsync(HttpRequestConfig.get('/same'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(callCount, 1);
+      expect(received!.isCancelled, isFalse);
+
+      gate.complete('ok');
+      expect(await first, 'ok');
+      expect(await second, 'ok');
+      notifier.dispose();
+    });
   });
 
   group('BUG-4 UseRequestBuilder 的 options 更新传播', () {
@@ -197,8 +267,7 @@ void main() {
           home: UseRequestBuilder<String, int>(
             service: service,
             options: UseRequestOptions(defaultParams: 1, ready: ready),
-            builder: (context, state, notifier) =>
-                Text(state.data ?? 'idle'),
+            builder: (context, state, notifier) => Text(state.data ?? 'idle'),
           ),
         ),
       );
@@ -231,8 +300,7 @@ void main() {
           home: UseRequestBuilder<String, int>(
             service: service,
             options: UseRequestOptions(defaultParams: 1, refreshDeps: [dep]),
-            builder: (context, state, notifier) =>
-                Text(state.data ?? 'idle'),
+            builder: (context, state, notifier) => Text(state.data ?? 'idle'),
           ),
         ),
       );
