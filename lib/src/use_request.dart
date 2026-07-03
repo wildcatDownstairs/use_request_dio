@@ -90,9 +90,18 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
   // 轮询控制器引用
   final pollingControllerRef = useRef<PollingController<TData>?>(null);
-  final pollingActiveRef = useRef<bool>(false);
   // 轮询错误后的自动恢复计时器
   final pollingRetryTimerRef = useRef<Timer?>(null);
+
+  // 最新一帧的 opts / 核心闭包。
+  // useEffect 创建的长生命周期回调（轮询 action、聚焦/重连监听）若直接捕获
+  // build 时的闭包，会在未列入 effect keys 的 options 变化后继续使用旧配置
+  // （stale closure）。统一经由 ref 间接调用，保证始终执行最新一帧的实现。
+  final optsRef = useRef(opts);
+  optsRef.value = opts;
+  final fetchDataRef =
+      useRef<Future<TData> Function(String, TParams, {bool isLoadMore})?>(null);
+  final refreshRef = useRef<VoidCallback?>(null);
 
   // loading 延迟控制器引用
   final loadingDelayControllerRef = useRef<LoadingDelayController?>(null);
@@ -146,7 +155,6 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       pollingRetryTimerRef.value?.cancel();
       pollingRetryTimerRef.value = null;
       pollingControllerRef.value?.dispose();
-      pollingActiveRef.value = false;
       loadingDelayControllerRef.value?.dispose();
       focusManagerRef.value?.dispose();
       for (final token in cancelTokenMapRef.value.values) {
@@ -268,6 +276,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
           loading: false,
           loadingMore: false,
           data: mergedResult,
+          clearData: mergedResult == null,
           clearError: true,
           hasMore:
               opts.hasMore?.call(mergedResult) ?? stateNotifier.value.hasMore,
@@ -399,8 +408,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
           ),
         );
 
-        // 新鲜时直接返回；陈旧时继续走请求再验证
+        // 新鲜时直接返回；陈旧时继续走请求再验证。
+        // 与 ahooks 一致：纯缓存命中不触发 onSuccess/onFinally 用户回调，
+        // 但补发观察者 finally 事件，保证 onRequest/onFinally 打点配对。
         if (!coordinator.shouldRevalidate()) {
+          notifyRequestObserverFinally(key, params);
           return cachedData;
         }
       }
@@ -474,12 +486,15 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
           : result;
 
       // 更新成功态
+      // clearData：TData 可空时 service 合法返回 null，copyWith 的 ?? 合并
+      // 会保留旧数据，需显式清除。
       loadingDelayControllerRef.value?.endLoading();
       updateState(
         (s) => s.copyWith(
           loading: false,
           loadingMore: false,
           data: mergedResult,
+          clearData: mergedResult == null,
           clearError: true,
           hasMore:
               opts.hasMore?.call(mergedResult) ?? stateNotifier.value.hasMore,
@@ -507,7 +522,6 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
           !pollingControllerRef.value!.isRunning &&
           opts.ready) {
         _ensurePollingActive(pollingControllerRef.value!);
-        pollingActiveRef.value = true;
       }
 
       // 触发完成回调
@@ -556,13 +570,14 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       }
       notifyRequestObserverFinally(key, params);
 
-      if (cacheKey != null && cacheKey.isNotEmpty) {
-        clearCacheEntry(cacheKey);
-      }
+      // 注意：失败时不清除已有缓存条目（SWR 语义）——后台再验证失败不应
+      // 抹掉仍在 cacheTime 有效期内的旧数据；进行中的 pending 条目会自动清理。
 
       return Future.error(e);
     }
   }
+
+  fetchDataRef.value = fetchData;
 
   // 异步执行（支持防抖/节流）
   Future<TData> runAsync(TParams params, {bool isLoadMore = false}) async {
@@ -603,14 +618,17 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   }
 
   // 使用上一次参数刷新（异步）
+  //
+  // 前置条件不满足时返回 Future.error 而非同步 throw，
+  // 保证 refresh()（void 版）在任何时机调用都不会让调用方同步崩溃。
   Future<TData> refreshAsync() {
     final lastKey = lastKeyRef.value;
     if (lastKey == null) {
-      throw StateError('No previous key to refresh with');
+      return Future.error(StateError('No previous key to refresh with'));
     }
     final paramsMap = lastParamsMapRef.value;
     if (!paramsMap.containsKey(lastKey)) {
-      throw StateError('No previous params to refresh with');
+      return Future.error(StateError('No previous params to refresh with'));
     }
     final params = paramsMap[lastKey];
     // 安全类型检查：当 TParams 为非空类型而 params 为 null 时，
@@ -619,9 +637,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       if (canInvokeWithParams(opts.defaultParams)) {
         return runAsync(opts.defaultParams as TParams);
       }
-      throw StateError(
-        'Cannot refresh: last params ($params) is not a valid $TParams '
-        'and no usable defaultParams available',
+      return Future.error(
+        StateError(
+          'Cannot refresh: last params ($params) is not a valid $TParams '
+          'and no usable defaultParams available',
+        ),
       );
     }
     return runAsync(params as TParams);
@@ -632,7 +652,12 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     unawaited(refreshAsync().then<void>((_) {}, onError: (_) {}));
   }
 
+  refreshRef.value = refresh;
+
   // 加载更多
+  //
+  // 与 refreshAsync 一致：前置条件不满足时统一返回 Future.error，
+  // 避免 loadMore()（void 版）在事件回调中同步抛出。
   Future<TData> loadMoreAsync() {
     // 如果 hasMore 明确为 false，不再发起请求
     if (stateNotifier.value.hasMore == false) {
@@ -640,15 +665,17 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     }
     final lastKey = lastKeyRef.value;
     if (lastKey == null) {
-      throw StateError('No previous key to load more with');
+      return Future.error(StateError('No previous key to load more with'));
     }
     final paramsMap = lastParamsMapRef.value;
     if (!paramsMap.containsKey(lastKey)) {
-      throw StateError('No previous params to load more with');
+      return Future.error(StateError('No previous params to load more with'));
     }
     final lastParams = paramsMap[lastKey];
     if (opts.loadMoreParams == null) {
-      throw StateError('UseRequestOptions.loadMoreParams 未提供，无法加载更多');
+      return Future.error(
+        StateError('UseRequestOptions.loadMoreParams 未提供，无法加载更多'),
+      );
     }
     final nextParams = opts.loadMoreParams!(
       lastParams as TParams,
@@ -689,8 +716,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     }
   }
 
-  // 取消当前请求（取消所有 key 的进行中请求）
+  // 取消当前请求（取消所有 key 的进行中请求，含排队中的防抖/节流调用）
   void cancel() {
+    debouncerRef.value?.cancel();
+    throttlerRef.value?.cancel();
     for (final entry in cancelTokenMapRef.value.entries) {
       entry.value?.cancel('Request cancelled by user');
       notifyRequestObserverCancel(entry.key);
@@ -701,7 +730,6 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
   void pausePolling() {
     pollingControllerRef.value?.pause();
-    pollingActiveRef.value = false;
     cancel();
   }
 
@@ -710,13 +738,29 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     final hasParams = lastKey != null && hasLastInvocationForKey(lastKey);
     if (pollingControllerRef.value != null && hasParams && opts.ready) {
       pollingControllerRef.value!.resume();
-      pollingActiveRef.value = true;
     }
   }
 
   final refreshDepsKey = opts.refreshDeps == null
       ? null
       : Object.hashAll(opts.refreshDeps!);
+
+  // refreshDeps 触发的刷新：与 ahooks 的 refresh 语义一致，优先复用最近一次
+  // 请求的参数（用户 run(x) 之后依赖变化，应以 x 刷新）；从未请求过或
+  // 最近参数无法安全转换为 TParams 时，回退 defaultParams。
+  //
+  // 注意：对于“无参请求”（TParams 允许为 null），params 为 null 也应触发 run，
+  // 否则会出现依赖变了但不发请求的行为（与 ahooks 不一致）。
+  void runForRefreshDeps() {
+    final lastKey = lastKeyRef.value;
+    final hasLast = lastKey != null && hasLastInvocationForKey(lastKey);
+    final params = hasLast
+        ? lastParamsMapRef.value[lastKey]
+        : opts.defaultParams;
+    if (!runIfInvocable(params) && hasLast) {
+      runIfInvocable(opts.defaultParams);
+    }
+  }
 
   // 依赖变化时自动刷新（仅在配置了 refreshDeps 时触发）
   useEffect(() {
@@ -735,21 +779,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         opts.refreshDepsAction!();
         pendingRefreshDepsRef.value = false;
       } else if (!opts.manual && opts.ready) {
-        // refreshDeps 的语义：依赖变化时，触发一次“使用当前闭包/参数”的刷新。
-        //
-        // 注意：对于“无参请求”（service 不依赖入参，或 TParams 允许为 null），
-        // params 可能为 null。此时也应该触发 run，否则会出现：
-        // - 依赖变了，但不发请求（与 ahooks 行为不一致）
-        // - 需要业务侧额外写兜底 refresh 逻辑
-        //
-        // 因此这里不要用 `params != null` 作为是否触发的条件。
-        final params =
-            opts.defaultParams ??
-            (lastKeyRef.value != null
-                ? lastParamsMapRef.value[lastKeyRef.value!]
-                : null);
         pendingRefreshDepsRef.value = false;
-        runIfInvocable(params);
+        runForRefreshDeps();
       } else {
         pendingRefreshDepsRef.value = true;
       }
@@ -758,12 +789,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       if (opts.refreshDepsAction != null) {
         opts.refreshDepsAction!();
       } else if (!opts.manual) {
-        final params =
-            opts.defaultParams ??
-            (lastKeyRef.value != null
-                ? lastParamsMapRef.value[lastKeyRef.value!]
-                : null);
-        runIfInvocable(params);
+        runForRefreshDeps();
       }
     }
 
@@ -779,7 +805,6 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       if (opts.pollingInterval == null) {
         pollingControllerRef.value?.dispose();
         pollingControllerRef.value = null;
-        pollingActiveRef.value = false;
         return null;
       }
 
@@ -787,18 +812,23 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       controller = PollingController<TData>(
         interval: opts.pollingInterval!,
         action: () {
+          // 通过 optsRef/fetchDataRef 读取最新一帧的配置与实现，
+          // 避免长生命周期的轮询回调捕获旧闭包（stale closure）。
+          //
           // 注意：当配置了 loadMoreParams（分页模式）时，轮询使用 defaultParams
           // 刷新首页数据，而非使用 lastParams（可能是某一页的参数），
           // 避免轮询覆盖已累积的分页数据。
+          final currentOpts = optsRef.value;
           final key = lastKeyRef.value;
           if (key != null && hasLastInvocationForKey(key)) {
             final TParams params;
-            if (opts.loadMoreParams != null && opts.defaultParams != null) {
-              params = opts.defaultParams as TParams;
+            if (currentOpts.loadMoreParams != null &&
+                currentOpts.defaultParams != null) {
+              params = currentOpts.defaultParams as TParams;
             } else {
               params = (lastParamsMapRef.value[key]) as TParams;
             }
-            return fetchData(key, params);
+            return fetchDataRef.value!(key, params);
           }
           throw StateError('No params for polling');
         },
@@ -808,7 +838,6 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         onError: (error) {
           if (opts.pausePollingOnError) {
             controller.pause();
-            pollingActiveRef.value = false;
 
             pollingRetryTimerRef.value?.cancel();
             final retryInterval = opts.pollingRetryInterval;
@@ -827,7 +856,6 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
                 if (canPoll) {
                   _ensurePollingActive(controller);
-                  pollingActiveRef.value = true;
                 }
               });
             }
@@ -844,7 +872,6 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         if (pollingControllerRef.value == controller) {
           pollingControllerRef.value = null;
         }
-        pollingActiveRef.value = false;
       };
     },
     [
@@ -877,10 +904,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
       if (canPoll) {
         _ensurePollingActive(controller);
-        pollingActiveRef.value = true;
       } else {
         controller.pause();
-        pollingActiveRef.value = false;
       }
 
       return null;
@@ -903,17 +928,17 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
             final key = lastKeyRef.value;
             if (opts.ready && key != null && hasLastInvocationForKey(key)) {
               if (opts.refreshOnFocus) {
-                refresh();
+                // 经 ref 调用最新一帧的 refresh，避免 stale closure
+                refreshRef.value?.call();
               }
               if (opts.pollingInterval != null && !opts.pollingWhenHidden) {
-                resumePolling();
+                pollingControllerRef.value?.resume();
               }
             }
           },
           onBlur: () {
             if (opts.pollingInterval != null && !opts.pollingWhenHidden) {
               pollingControllerRef.value?.pause();
-              pollingActiveRef.value = false;
             }
           },
         );
@@ -939,7 +964,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         if (online && opts.ready) {
           final key = lastKeyRef.value;
           if (key != null && hasLastInvocationForKey(key)) {
-            refresh();
+            // 经 ref 调用最新一帧的 refresh，避免 stale closure
+            refreshRef.value?.call();
           }
         }
       });
@@ -970,7 +996,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     error: stateNotifier.value.error,
     params: stateNotifier.value.params,
     hasMore: stateNotifier.value.hasMore,
-    isPolling: pollingActiveRef.value,
+    // 直接派生自控制器状态，避免影子布尔与真实状态脱节。
+    // 注意：ref 变更不触发 rebuild，pause/resume 后的值在下一次
+    // state 变化引起的 rebuild 时才反映到 UI。
+    isPolling: pollingControllerRef.value?.isRunning ?? false,
     runAsync: runAsync,
     run: run,
     refreshAsync: refreshAsync,

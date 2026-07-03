@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show listEquals, mapEquals;
 
 /// HTTP 请求方法枚举
 enum HttpMethod { get, post, put, delete, patch, head, options }
@@ -285,6 +286,48 @@ class HttpRequestConfig {
       extra: extra ?? this.extra,
       cancelToken: cancelToken ?? this.cancelToken,
     );
+  }
+
+  /// 值语义相等比较。
+  ///
+  /// useRequest 内部多处依赖参数对象的 `==`（如 keepPreviousData 的参数
+  /// 变化判断），因此按请求语义比较字段：path、method、data（Map/List 做
+  /// 浅比较）、queryParameters、headers、超时、responseType、contentType。
+  /// 回调（onSendProgress 等）、extra、cancelToken 不参与比较——它们不改变
+  /// “这是不是同一个请求”的语义，且闭包在 inline 构造时每次引用都不同。
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! HttpRequestConfig) return false;
+    return other.path == path &&
+        other.method == method &&
+        _dataEquals(other.data, data) &&
+        mapEquals(other.queryParameters, queryParameters) &&
+        mapEquals(other.headers, headers) &&
+        other.connectTimeout == connectTimeout &&
+        other.receiveTimeout == receiveTimeout &&
+        other.sendTimeout == sendTimeout &&
+        other.responseType == responseType &&
+        other.contentType == contentType;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    path,
+    method,
+    connectTimeout,
+    receiveTimeout,
+    sendTimeout,
+    responseType,
+    contentType,
+  );
+
+  /// data 的浅比较：Map/List 逐项比较一层，其余类型走 ==
+  static bool _dataEquals(dynamic a, dynamic b) {
+    if (identical(a, b)) return true;
+    if (a is Map && b is Map) return mapEquals(a, b);
+    if (a is List && b is List) return listEquals(a, b);
+    return a == b;
   }
 }
 

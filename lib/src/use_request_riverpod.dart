@@ -97,6 +97,18 @@ class UseRequestNotifier<TData, TParams>
     return true;
   }
 
+  /// refreshDeps / setReady 触发的刷新：与 ahooks 的 refresh 语义一致，
+  /// 优先复用最近一次请求的参数；从未请求过或最近参数无法安全转换为
+  /// TParams 时，回退 defaultParams。
+  void _runWithLastOrDefaultParams() {
+    final lastKey = _lastKey;
+    final hasLast = lastKey != null && _lastParamsByKey.containsKey(lastKey);
+    final params = hasLast ? _lastParamsByKey[lastKey] : options.defaultParams;
+    if (!_runIfInvocable(params) && hasLast) {
+      _runIfInvocable(options.defaultParams);
+    }
+  }
+
   /// 对外暴露一个只读快照，避免 UI 层直接访问 StateNotifier 的受保护成员 `state`。
   ///
   /// 这样 Builder / mixin 仍然能在首帧同步拿到当前状态，但不会踩到 analyzer
@@ -321,6 +333,7 @@ class UseRequestNotifier<TData, TParams>
           loading: false,
           loadingMore: false,
           data: mergedResult,
+          clearData: mergedResult == null,
           clearError: true,
           hasMore: options.hasMore?.call(mergedResult) ?? state.hasMore,
         );
@@ -441,7 +454,10 @@ class UseRequestNotifier<TData, TParams>
             requestCount: currentRequestCount,
           );
         }
+        // 与 ahooks 一致：纯缓存命中不触发 onSuccess/onFinally 用户回调，
+        // 但补发观察者 finally 事件，保证 onRequest/onFinally 打点配对。
         if (!coordinator.shouldRevalidate()) {
+          notifyRequestObserverFinally(key, params);
           return cachedData;
         }
       }
@@ -514,12 +530,15 @@ class UseRequestNotifier<TData, TParams>
           : result;
 
       // 更新成功态
+      // clearData：TData 可空时 service 合法返回 null，copyWith 的 ?? 合并
+      // 会保留旧数据，需显式清除。
       _loadingDelayController?.endLoading();
       if (mounted) {
         state = state.copyWith(
           loading: false,
           loadingMore: false,
           data: mergedResult,
+          clearData: mergedResult == null,
           clearError: true,
           hasMore: options.hasMore?.call(mergedResult) ?? state.hasMore,
         );
@@ -594,9 +613,8 @@ class UseRequestNotifier<TData, TParams>
       }
       notifyRequestObserverFinally(key, params);
 
-      if (cacheKey != null && cacheKey.isNotEmpty) {
-        clearCacheEntry(cacheKey);
-      }
+      // 注意：失败时不清除已有缓存条目（SWR 语义）——后台再验证失败不应
+      // 抹掉仍在 cacheTime 有效期内的旧数据；进行中的 pending 条目会自动清理。
 
       return Future.error(e);
     }
@@ -627,12 +645,15 @@ class UseRequestNotifier<TData, TParams>
   }
 
   /// 使用上一次参数刷新（异步）
+  ///
+  /// 前置条件不满足时返回 Future.error 而非同步 throw，
+  /// 保证 refresh()（void 版）在任何时机调用都不会让调用方同步崩溃。
   Future<TData> refreshAsync() {
     if (_lastKey == null) {
-      throw StateError('No previous key to refresh with');
+      return Future.error(StateError('No previous key to refresh with'));
     }
     if (!_lastParamsByKey.containsKey(_lastKey!)) {
-      throw StateError('No previous params to refresh with');
+      return Future.error(StateError('No previous params to refresh with'));
     }
     final params = _lastParamsByKey[_lastKey!];
     // 安全类型检查：当 TParams 为非空类型而 params 为 null 时，
@@ -643,9 +664,11 @@ class UseRequestNotifier<TData, TParams>
       if (fallback.isValid) {
         return runAsync(fallback.params as TParams);
       }
-      throw StateError(
-        'Cannot refresh: last params ($params) is not a valid $TParams '
-        'and no usable defaultParams available',
+      return Future.error(
+        StateError(
+          'Cannot refresh: last params ($params) is not a valid $TParams '
+          'and no usable defaultParams available',
+        ),
       );
     }
     return runAsync(params as TParams);
@@ -657,20 +680,25 @@ class UseRequestNotifier<TData, TParams>
   }
 
   /// 加载更多（异步）
+  ///
+  /// 与 refreshAsync 一致：前置条件不满足时统一返回 Future.error，
+  /// 避免 loadMore()（void 版）在事件回调中同步抛出。
   Future<TData> loadMoreAsync() {
     // 如果 hasMore 明确为 false，不再发起请求
     if (state.hasMore == false) {
       return Future.error(StateError('没有更多数据可加载（hasMore 为 false）'));
     }
     if (_lastKey == null) {
-      throw StateError('No previous key to load more with');
+      return Future.error(StateError('No previous key to load more with'));
     }
     if (!_lastParamsByKey.containsKey(_lastKey!)) {
-      throw StateError('No previous params to load more with');
+      return Future.error(StateError('No previous params to load more with'));
     }
     final lastParams = _lastParamsByKey[_lastKey!];
     if (options.loadMoreParams == null) {
-      throw StateError('UseRequestOptions.loadMoreParams 未提供，无法加载更多');
+      return Future.error(
+        StateError('UseRequestOptions.loadMoreParams 未提供，无法加载更多'),
+      );
     }
 
     final nextParams = options.loadMoreParams!(
@@ -709,8 +737,10 @@ class UseRequestNotifier<TData, TParams>
     }
   }
 
-  /// 取消当前进行中的请求（取消所有 key 的请求）
+  /// 取消当前进行中的请求（取消所有 key 的请求，含排队中的防抖/节流调用）
   void cancel() {
+    _debouncer?.cancel();
+    _throttler?.cancel();
     for (final entry in _cancelTokens.entries) {
       entry.value?.cancel('Request cancelled by user');
       notifyRequestObserverCancel(entry.key);
@@ -753,18 +783,12 @@ class UseRequestNotifier<TData, TParams>
         if (action != null) {
           action();
         } else if (!options.manual) {
-          final params = _lastKey != null
-              ? _lastParamsByKey[_lastKey!]
-              : options.defaultParams;
           // 与 Hook 版保持一致：即使 params 为 null（无参请求），也应触发 run。
-          _runIfInvocable(params);
+          _runWithLastOrDefaultParams();
         }
       }
       if (!replayedPendingWork && !options.manual) {
-        final params = _lastKey != null
-            ? _lastParamsByKey[_lastKey!]
-            : options.defaultParams;
-        _runIfInvocable(params);
+        _runWithLastOrDefaultParams();
       }
 
       if (options.pollingInterval != null &&
@@ -806,11 +830,8 @@ class UseRequestNotifier<TData, TParams>
     }
 
     if (!options.manual && _ready) {
-      final params = _lastKey != null
-          ? _lastParamsByKey[_lastKey!]
-          : options.defaultParams;
       // refreshDeps 语义：依赖变化时触发一次刷新，无参请求也应生效。
-      _runIfInvocable(params);
+      _runWithLastOrDefaultParams();
       _pendingRefreshDeps = false;
     } else {
       _pendingRefreshDeps = true;
@@ -1001,7 +1022,8 @@ mixin UseRequestMixin<TData, TParams> {
   late UseRequestState<TData, TParams> _state;
 
   void initUseRequest({
-    required WidgetRef ref,
+    @Deprecated('该参数从未被使用，Mixin 内部自行管理 Notifier，将在未来版本移除')
+    WidgetRef? ref,
     required Service<TData, TParams> service,
     UseRequestOptions<TData, TParams>? options,
 
@@ -1059,11 +1081,14 @@ extension UseRequestResultExtension<TData, TParams>
 
 /// 提供 useRequest 能力的组件
 ///
+/// 内部自行管理 [UseRequestNotifier]，不依赖 Riverpod 容器，
+/// 因此**无需**包裹在 ProviderScope 中即可使用。
+///
 /// 注意：[service] 参数使用函数引用比较。为避免 parent rebuild 时因闭包引用变化
 /// 导致 notifier 被不必要地销毁重建，建议：
 /// 1. 使用顶层函数或 static 方法作为 service
 /// 2. 或通过 [serviceKey] 显式控制何时重建
-class UseRequestBuilder<TData, TParams> extends ConsumerStatefulWidget {
+class UseRequestBuilder<TData, TParams> extends StatefulWidget {
   final Service<TData, TParams> service;
   final UseRequestOptions<TData, TParams>? options;
 
@@ -1089,12 +1114,12 @@ class UseRequestBuilder<TData, TParams> extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<UseRequestBuilder<TData, TParams>> createState() =>
+  State<UseRequestBuilder<TData, TParams>> createState() =>
       _UseRequestBuilderState<TData, TParams>();
 }
 
 class _UseRequestBuilderState<TData, TParams>
-    extends ConsumerState<UseRequestBuilder<TData, TParams>> {
+    extends State<UseRequestBuilder<TData, TParams>> {
   late UseRequestNotifier<TData, TParams> _notifier;
   late VoidCallback _removeListener;
   late UseRequestState<TData, TParams> _state;

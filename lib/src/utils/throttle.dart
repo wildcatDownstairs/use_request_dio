@@ -176,11 +176,29 @@ class Throttler<T> {
     final canRunLeading =
         leading && (_lastExecutionTime == null || elapsedSinceLast >= duration);
 
-    // maxWait 强制执行：超过最大等待时间，立即执行
+    // maxWait 强制执行：超过最大等待时间，立即执行。
+    // 必须先清理排队中的 trailing 状态：否则旧的 trailing/maxWait 定时器
+    // 稍后触发时会把 pending action 再执行一次（双重请求）。
+    // 已在等待 pending 结果的调用方改为共享本次执行的结果，避免悬挂。
     if (maxWait != null && elapsedSinceFirst >= maxWait!) {
+      _trailingTimer?.cancel();
+      _trailingTimer = null;
+      _maxWaitTimer?.cancel();
+      _maxWaitTimer = null;
+      _pendingAction = null;
+      final pendingCompleter = _pendingCompleter;
+      _pendingCompleter = null;
+
       _firstCallTime = now;
       _lastExecutionTime = now;
-      return action();
+      final future = action();
+      if (pendingCompleter != null && !pendingCompleter.isCompleted) {
+        future.then<void>(
+          pendingCompleter.complete,
+          onError: pendingCompleter.completeError,
+        );
+      }
+      return future;
     }
 
     // Leading 立即执行：首次调用或已过节流间隔
