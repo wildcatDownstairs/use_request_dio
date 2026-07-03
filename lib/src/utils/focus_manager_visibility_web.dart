@@ -1,23 +1,27 @@
-// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'dart:js_interop';
 
-import 'dart:html' as html;
+import 'package:web/web.dart' as web;
 
 typedef VisibilityChangeCallback = void Function(bool visible);
 typedef VisibilityChangeDisposer = void Function();
 
 /// Web implementation using document.visibilitychange.
+///
+/// 基于 package:web + dart:js_interop 实现，兼容 JS 与 WASM 编译目标
+/// （旧的 dart:html 已弃用，且 dart.library.html 条件在 WASM 下为 false）。
 VisibilityChangeDisposer registerVisibilityChange(
   VisibilityChangeCallback callback,
 ) {
-  void handler(html.Event _) {
-    callback(html.document.visibilityState == 'visible');
+  void handler(web.Event _) {
+    callback(web.document.visibilityState == 'visible');
   }
 
-  html.document.addEventListener('visibilitychange', handler);
+  final jsHandler = handler.toJS;
+  web.document.addEventListener('visibilitychange', jsHandler);
   // Emit current state once.
-  callback(html.document.visibilityState == 'visible');
+  callback(web.document.visibilityState == 'visible');
 
   return () {
-    html.document.removeEventListener('visibilitychange', handler);
+    web.document.removeEventListener('visibilitychange', jsHandler);
   };
 }

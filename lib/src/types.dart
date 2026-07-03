@@ -619,10 +619,15 @@ class UseRequestOptions<TData, TParams> {
 
   /// 并发隔离 key 生成函数
   ///
-  /// 用于同时管理多个独立的请求实例，每个 key 有独立的状态。
+  /// 为不同 key 提供独立的取消令牌、请求计数与刷新参数记录。
+  ///
+  /// **与 ahooks v2 的 fetchKey 语义不同**：本实现只有一份 data/loading 状态，
+  /// 始终归属最近一次触发的 key；非最新 key 的请求结果会被静默丢弃
+  /// （不更新状态、不触发 onSuccess）。如需为多个并发请求各自维护状态，
+  /// 请在不同组件中分别调用 useRequest。
   ///
   /// ```dart
-  /// // 同时请求多个用户，各自独立管理
+  /// // 快速切换用户时，旧用户的迟到响应不会覆盖新用户的数据
   /// UseRequestOptions(
   ///   fetchKey: (userId) => 'user-$userId',
   /// )

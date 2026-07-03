@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'focus_manager_visibility_stub.dart'
-    if (dart.library.html) 'focus_manager_visibility_web.dart';
+    if (dart.library.js_interop) 'focus_manager_visibility_web.dart';
 
 /// 聚焦事件管理器（应用生命周期）
 /// 使用 WidgetsBindingObserver 监听应用进入前台与后台

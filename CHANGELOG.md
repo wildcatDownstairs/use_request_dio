@@ -1,5 +1,26 @@
 > 维护约定：自本版本起，更新日志统一使用简体中文。
 
+## 未发布
+
+- 修复（P0）：自动请求 effect 不再依赖 `defaultParams`，消除内联构造未重写 `==` 的参数对象（如 `HttpRequestConfig`）导致的"请求 → 重建 → 再请求"无限循环；参数变化触发刷新请改用 `refreshDeps`。
+- 修复（P0）：缓存去重的 pending 清理改用 `then + onError`，消除失败请求触发的 Zone 未处理异步异常（此前会向全局错误处理器上报假崩溃）。
+- 新增（P0）：`HttpRequestConfig` 增加 `cancelToken` 字段；useRequest 会自动注入内部令牌，`cancel()` 现在能真正中断底层 Dio 请求（用户显式设置的令牌优先）。
+- 修复（P0）：Riverpod `UseRequestBuilder` 的 options 更新现在正确传播——切换 `ready`、变更 `refreshDeps`、更新回调闭包均生效。
+- 修复（P1）：`refreshDeps` 触发刷新时优先复用最近一次请求参数（对齐 ahooks `refresh` 语义），最近参数不可用时回退 `defaultParams`；Hook 版与 Riverpod 版行为统一。
+- 修复（P1）：`refresh()`/`loadMore()` 在从未请求过时不再同步抛出 `StateError`，统一转为被吞掉的 `Future.error`。
+- 修复（P1）：`cancel()` 现在同时取消排队中的防抖/节流调用。
+- 修复（P1）：请求失败不再清除仍在 `cacheTime` 有效期内的缓存条目（SWR 语义：后台再验证失败保留旧数据）。
+- 修复（P1）：轮询、聚焦刷新、重连刷新的回调改经 ref 调用最新一帧实现，消除 stale closure（此前 `onSuccess`/`dataMerger` 等未列入 effect keys 的配置变化后轮询仍用旧值）。
+- 修复（P1）：`Throttler` 的 maxWait 立即执行分支补齐清理，消除事件循环繁忙时排队 trailing 被双重执行的问题；排队等待者共享本次执行结果。
+- 修复（P1）：`TData` 可空时 service 合法返回 `null` 现在会清空 `data`，不再被旧数据吞掉。
+- 修复（P2）：fresh 缓存命中时补发观察者 `onFinally` 事件，保证 `onRequest`/`onFinally` 打点配对（用户回调仍与 ahooks 一致不触发）。
+- 新增（P2）：`HttpRequestConfig` 实现值语义 `==`/`hashCode`（回调、`extra`、`cancelToken` 不参与比较），修复 `keepPreviousData=false` 下相同参数重复请求导致的数据闪空。
+- 重构（P2）：Web 可见性监听从已弃用的 `dart:html` 迁移到 `package:web` + `dart:js_interop`，兼容 WASM 编译目标（新增依赖 `web: ^1.1.1`）。
+- 变更（P2）：`UseRequestBuilder` 改为普通 `StatefulWidget`，不再要求包裹 `ProviderScope`；`UseRequestMixin.initUseRequest` 的 `ref` 参数从未被使用，标记为弃用并改为可选。
+- 变更（P2）：Hook 版 `isPolling` 改为直接派生自轮询控制器状态，移除可能脱节的影子布尔。
+- 文档（P2）：`fetchKey` 文档明确与 ahooks v2 的语义差异（单份状态归属最新 key，非最新 key 的结果被丢弃）。
+- 测试：新增 P0 回归测试 8 条、P1/P2 回归测试 11 条。
+
 ## 0.3.5
 
 - 示例：新增 `Options` 与频率控制进阶示例模块，完善演示入口与交互链路。
