@@ -319,7 +319,17 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     TParams params, {
     bool isLoadMore = false,
   }) async {
-    // If the params is HttpRequestConfig, merge default timeouts from options.
+    // Increment request count per key
+    final currentRequestCount = (requestCountMapRef.value[key] ?? 0) + 1;
+    requestCountMapRef.value[key] = currentRequestCount;
+
+    // 创建新的取消令牌（按 key）
+    cancelTokenMapRef.value[key]?.cancel('New request started');
+    final cancelToken = createLinkedCancelToken(opts.cancelToken);
+    cancelTokenMapRef.value[key] = cancelToken;
+
+    // If the params is HttpRequestConfig, merge default timeouts from options
+    // and inject the internal cancel token so that cancel() aborts the Dio call.
     // This makes UseRequestOptions.connectTimeout/receiveTimeout/sendTimeout effective
     // for DioHttpAdapter + HttpRequestConfig scenarios.
     final TParams callParams = params is HttpRequestConfig
@@ -333,18 +343,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
                 sendTimeout:
                     (params as HttpRequestConfig).sendTimeout ??
                     opts.sendTimeout,
+                cancelToken:
+                    (params as HttpRequestConfig).cancelToken ?? cancelToken,
               )
               as TParams
         : params;
-
-    // Increment request count per key
-    final currentRequestCount = (requestCountMapRef.value[key] ?? 0) + 1;
-    requestCountMapRef.value[key] = currentRequestCount;
-
-    // 创建新的取消令牌（按 key）
-    cancelTokenMapRef.value[key]?.cancel('New request started');
-    final cancelToken = createLinkedCancelToken(opts.cancelToken);
-    cancelTokenMapRef.value[key] = cancelToken;
 
     // 记录当前参数与 key 用于刷新
     lastParamsMapRef.value[key] = params;
@@ -946,6 +949,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   }, [opts.refreshOnReconnect, opts.reconnectStream, opts.ready]);
 
   // 非手动模式下，挂载后自动请求一次
+  //
+  // 注意：keys 不包含 defaultParams。defaultParams 只在挂载（或 manual/ready 切换）时
+  // 消费一次，与 ahooks 语义一致。若把它加入 keys，内联构造且未重写 == 的参数对象
+  // （如 HttpRequestConfig）会在每次 rebuild 时判定为"变化"，形成
+  // 请求 → 状态变更 → rebuild → 再请求的死循环。参数变化触发刷新请使用 refreshDeps。
   useEffect(() {
     if (!opts.manual && opts.ready) {
       // 如果有待执行的 refreshDeps 回放，跳过自动请求避免同帧重复触发
@@ -953,7 +961,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       runIfInvocable(opts.defaultParams);
     }
     return null;
-  }, [opts.manual, opts.defaultParams, opts.ready]);
+  }, [opts.manual, opts.ready]);
 
   return UseRequestResult<TData, TParams>(
     loading: stateNotifier.value.loading,

@@ -246,13 +246,18 @@ class RequestCache {
     );
     _pending[key] = entry;
 
-    // 当 future 完成时自动清理（无论成功或失败）
-    future.whenComplete(() {
+    // 当 future 完成时自动清理（无论成功或失败）。
+    // 注意：不能用 whenComplete —— 它返回的派生 Future 会携带原始错误，
+    // 无人监听时会触发 Zone 未处理异常。这里用 then + onError 显式吞掉错误，
+    // 原始错误仍由真正 await 该 future 的调用方处理。
+    void cleanup(Object? _) {
       final current = _pending[key];
       if (identical(current, entry)) {
         _pending.remove(key);
       }
-    });
+    }
+
+    future.then<void>(cleanup, onError: cleanup);
   }
 
   /// 移除指定键的缓存

@@ -368,7 +368,16 @@ class UseRequestNotifier<TData, TParams>
     TParams params, {
     bool isLoadMore = false,
   }) async {
-    // If the params is HttpRequestConfig, merge default timeouts from options.
+    final currentRequestCount = (_requestCounts[key] ?? 0) + 1;
+    _requestCounts[key] = currentRequestCount;
+
+    // 创建新的取消令牌
+    _cancelTokens[key]?.cancel('New request started');
+    final cancelToken = createLinkedCancelToken(options.cancelToken);
+    _cancelTokens[key] = cancelToken;
+
+    // If the params is HttpRequestConfig, merge default timeouts from options
+    // and inject the internal cancel token so that cancel() aborts the Dio call.
     final TParams callParams;
     if (params is HttpRequestConfig) {
       final config = params;
@@ -377,19 +386,12 @@ class UseRequestNotifier<TData, TParams>
                 connectTimeout: config.connectTimeout ?? options.connectTimeout,
                 receiveTimeout: config.receiveTimeout ?? options.receiveTimeout,
                 sendTimeout: config.sendTimeout ?? options.sendTimeout,
+                cancelToken: config.cancelToken ?? cancelToken,
               )
               as TParams;
     } else {
       callParams = params;
     }
-
-    final currentRequestCount = (_requestCounts[key] ?? 0) + 1;
-    _requestCounts[key] = currentRequestCount;
-
-    // 创建新的取消令牌
-    _cancelTokens[key]?.cancel('New request started');
-    final cancelToken = createLinkedCancelToken(options.cancelToken);
-    _cancelTokens[key] = cancelToken;
 
     // 记录当前参数，用于刷新
     _lastParamsByKey[key] = params;
@@ -815,12 +817,24 @@ class UseRequestNotifier<TData, TParams>
     }
   }
 
-  /// 动态更新配置参数（防抖/节流/轮询等工具参数），不销毁 Notifier、不丢失状态。
+  /// 动态更新配置参数（防抖/节流/轮询/ready/refreshDeps 等），不销毁 Notifier、不丢失状态。
   ///
   /// 仅当工具相关参数发生变化时才会重建对应工具实例，轮询状态（运行/暂停）会被保留。
+  /// 回调类字段（onSuccess/cacheKey 等）无条件替换为新引用。
   void updateOptions(UseRequestOptions<TData, TParams> newOptions) {
     final old = options;
     options = newOptions;
+
+    // — refreshDeps 变化 —（refreshDeps 方法内部按 listEquals 去重，未变化时无副作用）
+    if (newOptions.refreshDeps != null) {
+      refreshDeps(newOptions.refreshDeps!, action: newOptions.refreshDepsAction);
+    }
+
+    // — ready 变化 —（放在 refreshDeps 之后：deps 变化但尚未 ready 时先记为 pending，
+    // 随后 setReady(true) 统一补偿触发，避免同时变化时重复请求）
+    if (old.ready != newOptions.ready) {
+      setReady(newOptions.ready);
+    }
 
     // — 防抖参数变化 —
     final debounceChanged =
@@ -1120,8 +1134,10 @@ class _UseRequestBuilderState<TData, TParams>
       _notifier.dispose();
       _bindNotifier();
       setState(() {});
-    } else if (oldWidget.options != widget.options) {
-      // 仅 options 变化：动态更新工具参数，保留请求状态
+    } else {
+      // options 变化：动态更新，保留请求状态。
+      // 无条件调用是有意的：options 的 == 只比较标量字段，
+      // 回调闭包与 refreshDeps 的变化必须交给 updateOptions 内部逐项 diff。
       _notifier.updateOptions(widget.options ?? const UseRequestOptions());
     }
   }
