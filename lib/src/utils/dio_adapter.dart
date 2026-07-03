@@ -93,6 +93,12 @@ class HttpRequestConfig {
   /// 请求的额外配置
   final Options? extra;
 
+  /// 取消令牌
+  ///
+  /// 未显式设置时，useRequest 会自动注入内部管理的令牌，
+  /// 使 `result.cancel()` 能真正中断底层 Dio 请求。
+  final CancelToken? cancelToken;
+
   const HttpRequestConfig({
     required this.path,
     this.method = HttpMethod.get,
@@ -107,6 +113,7 @@ class HttpRequestConfig {
     this.onSendProgress,
     this.onReceiveProgress,
     this.extra,
+    this.cancelToken,
   });
 
   /// 创建 GET 请求配置
@@ -260,6 +267,7 @@ class HttpRequestConfig {
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
     Options? extra,
+    CancelToken? cancelToken,
   }) {
     return HttpRequestConfig(
       path: path ?? this.path,
@@ -275,6 +283,7 @@ class HttpRequestConfig {
       onSendProgress: onSendProgress ?? this.onSendProgress,
       onReceiveProgress: onReceiveProgress ?? this.onReceiveProgress,
       extra: extra ?? this.extra,
+      cancelToken: cancelToken ?? this.cancelToken,
     );
   }
 }
@@ -469,7 +478,7 @@ class DioHttpAdapter {
         contentType:
             config.contentType ?? config.extra?.contentType ?? base.contentType,
         extra: {...base.extra, ...?config.extra?.extra},
-        cancelToken: cancelToken,
+        cancelToken: cancelToken ?? config.cancelToken,
         onSendProgress: config.onSendProgress,
         onReceiveProgress: config.onReceiveProgress,
       );
