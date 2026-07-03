@@ -1,5 +1,14 @@
 > 维护约定：自本版本起，更新日志统一使用简体中文。
 
+## 0.5.1
+
+- 修复：相同 `cacheKey` 的并发请求命中 pending cache 时不再取消正在复用的 Dio 请求。
+- 修复：`HttpRequestConfig.cancelToken` 与 `UseRequestOptions.cancelToken` 统一关联到内部令牌，外部令牌和 `result.cancel()` 均可中断底层请求，内部取消不会反向废弃外部令牌。
+- 修复：Riverpod `updateOptions()` 动态启用、替换或关闭 `refreshOnFocus`、`refreshOnReconnect`、`reconnectStream`、`pollingWhenHidden` 时会同步更新监听器。
+- 修复：Hook 版 `isPolling` 改为响应式状态，调用 `pausePolling()` / `resumePolling()` 后立即更新；控制器卸载时静默释放，避免对已销毁 Widget 请求重建。
+- 修复：`HttpRequestConfig` 值语义纳入 Dio `Options` 中会影响真实请求的字段，避免 headers、responseType、编码器等变化被误判为相同请求。
+- 测试：增加 pending 去重与取消、双向令牌关联、动态聚焦/重连监听、轮询响应式状态和 `Options` 值语义的组合测试。
+
 ## 0.5.0
 
 > 本版本包含若干破坏性变更（BREAKING CHANGE），详见下方标注项；其余为向后兼容的缺陷修复。

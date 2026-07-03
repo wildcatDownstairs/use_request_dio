@@ -153,6 +153,52 @@ class UseRequestNotifier<TData, TParams>
     }
   }
 
+  void _configureFocusManager() {
+    _focusManager?.dispose();
+    _focusManager = null;
+
+    if (!options.refreshOnFocus &&
+        (options.pollingInterval == null || options.pollingWhenHidden)) {
+      return;
+    }
+
+    _focusManager = AppFocusManager(
+      onFocus: () {
+        if (_lastKey != null && _hasLastInvocationForKey(_lastKey!) && _ready) {
+          if (options.refreshOnFocus) {
+            refresh();
+          }
+          if (options.pollingInterval != null && !options.pollingWhenHidden) {
+            _pollingController?.resume();
+          }
+        }
+      },
+      onBlur: () {
+        if (options.pollingInterval != null && !options.pollingWhenHidden) {
+          _pollingController?.pause();
+        }
+      },
+    )..start();
+  }
+
+  void _configureReconnectListener() {
+    _reconnectSub?.cancel();
+    _reconnectSub = null;
+
+    if (!options.refreshOnReconnect || options.reconnectStream == null) {
+      return;
+    }
+
+    _reconnectSub = options.reconnectStream!.listen((online) {
+      if (online &&
+          _ready &&
+          _lastKey != null &&
+          _hasLastInvocationForKey(_lastKey!)) {
+        refresh();
+      }
+    });
+  }
+
   void _initializeUtilities() {
     // 初始化防抖
     if (options.debounceInterval != null) {
@@ -226,43 +272,8 @@ class UseRequestNotifier<TData, TParams>
       }
     }
 
-    // 初始化聚焦管理
-    if (options.refreshOnFocus ||
-        (options.pollingInterval != null && !options.pollingWhenHidden)) {
-      _focusManager = AppFocusManager(
-        onFocus: () {
-          if (_lastKey != null &&
-              _hasLastInvocationForKey(_lastKey!) &&
-              _ready) {
-            if (options.refreshOnFocus) {
-              refresh();
-            }
-            if (options.pollingInterval != null && !options.pollingWhenHidden) {
-              _pollingController?.resume();
-            }
-          }
-        },
-        onBlur: () {
-          if (options.pollingInterval != null && !options.pollingWhenHidden) {
-            _pollingController?.pause();
-          }
-        },
-      );
-      _focusManager!.start();
-    }
-
-    // refreshOnReconnect：监听外部 reconnectStream
-    if (options.refreshOnReconnect && options.reconnectStream != null) {
-      _reconnectSub?.cancel();
-      _reconnectSub = options.reconnectStream!.listen((online) {
-        if (online &&
-            _ready &&
-            _lastKey != null &&
-            _hasLastInvocationForKey(_lastKey!)) {
-          refresh();
-        }
-      });
-    }
+    _configureFocusManager();
+    _configureReconnectListener();
   }
 
   void _setLoading(bool loading) {
@@ -384,28 +395,6 @@ class UseRequestNotifier<TData, TParams>
     final currentRequestCount = (_requestCounts[key] ?? 0) + 1;
     _requestCounts[key] = currentRequestCount;
 
-    // 创建新的取消令牌
-    _cancelTokens[key]?.cancel('New request started');
-    final cancelToken = createLinkedCancelToken(options.cancelToken);
-    _cancelTokens[key] = cancelToken;
-
-    // If the params is HttpRequestConfig, merge default timeouts from options
-    // and inject the internal cancel token so that cancel() aborts the Dio call.
-    final TParams callParams;
-    if (params is HttpRequestConfig) {
-      final config = params;
-      callParams =
-          config.copyWith(
-                connectTimeout: config.connectTimeout ?? options.connectTimeout,
-                receiveTimeout: config.receiveTimeout ?? options.receiveTimeout,
-                sendTimeout: config.sendTimeout ?? options.sendTimeout,
-                cancelToken: config.cancelToken ?? cancelToken,
-              )
-              as TParams;
-    } else {
-      callParams = params;
-    }
-
     // 记录当前参数，用于刷新
     _lastParamsByKey[key] = params;
     _lastKey = key;
@@ -428,6 +417,17 @@ class UseRequestNotifier<TData, TParams>
     if (cacheKey != null && cacheKey.isNotEmpty) {
       final pending = getPendingCache<TData>(cacheKey);
       if (pending != null) {
+        // 复用 pending 前不能取消旧令牌，否则会把共享的 Dio Future 一并取消。
+        final existingToken = _cancelTokens[key];
+        if (existingToken == null || existingToken.isCancelled) {
+          final configToken = params is HttpRequestConfig
+              ? params.cancelToken
+              : null;
+          _cancelTokens[key] = createLinkedCancelToken(
+            options.cancelToken,
+            configToken,
+          );
+        }
         return _bindPendingRequest(
           pending,
           key,
@@ -461,6 +461,29 @@ class UseRequestNotifier<TData, TParams>
           return cachedData;
         }
       }
+    }
+
+    // 未命中 pending，当前调用将发起新请求，此时再取消同 key 的旧请求。
+    _cancelTokens[key]?.cancel('New request started');
+    final configToken = params is HttpRequestConfig ? params.cancelToken : null;
+    final cancelToken = createLinkedCancelToken(
+      options.cancelToken,
+      configToken,
+    );
+    _cancelTokens[key] = cancelToken;
+
+    final TParams callParams;
+    if (params is HttpRequestConfig) {
+      callParams =
+          params.copyWith(
+                connectTimeout: params.connectTimeout ?? options.connectTimeout,
+                receiveTimeout: params.receiveTimeout ?? options.receiveTimeout,
+                sendTimeout: params.sendTimeout ?? options.sendTimeout,
+                cancelToken: cancelToken,
+              )
+              as TParams;
+    } else {
+      callParams = params;
     }
 
     // 进入 loading 状态
@@ -818,10 +841,12 @@ class UseRequestNotifier<TData, TParams>
   void refreshDeps(List<Object?> deps, {VoidCallback? action}) {
     final prev = _lastRefreshDeps;
     final changed = prev == null || !listEquals(prev, deps);
+    // deps 内容未变时也要保存最新 action，避免 ready=false 期间待回放任务
+    // 继续调用旧闭包。
+    _lastRefreshDepsAction = action;
     if (!changed) return;
 
     _lastRefreshDeps = List<Object?>.from(deps);
-    _lastRefreshDepsAction = action;
 
     if (action != null) {
       action();
@@ -848,7 +873,10 @@ class UseRequestNotifier<TData, TParams>
 
     // — refreshDeps 变化 —（refreshDeps 方法内部按 listEquals 去重，未变化时无副作用）
     if (newOptions.refreshDeps != null) {
-      refreshDeps(newOptions.refreshDeps!, action: newOptions.refreshDepsAction);
+      refreshDeps(
+        newOptions.refreshDeps!,
+        action: newOptions.refreshDepsAction,
+      );
     }
 
     // — ready 变化 —（放在 refreshDeps 之后：deps 变化但尚未 ready 时先记为 pending，
@@ -941,11 +969,30 @@ class UseRequestNotifier<TData, TParams>
             }
           },
         );
-        // 恢复之前的运行状态
-        if (wasRunning && _ready) {
+        // 恢复旧控制器状态；动态启用轮询时，如果请求已经执行过，也应启动。
+        final hasParams =
+            _lastKey != null && _hasLastInvocationForKey(_lastKey!);
+        final hasEverRun = state.requestCount > 0;
+        final shouldRun = wasRunning || !newOptions.manual || hasEverRun;
+        if (_ready && hasParams && shouldRun) {
           _pollingController!.start();
         }
       }
+    }
+
+    final focusConfigurationChanged =
+        old.refreshOnFocus != newOptions.refreshOnFocus ||
+        old.pollingInterval != newOptions.pollingInterval ||
+        old.pollingWhenHidden != newOptions.pollingWhenHidden;
+    if (focusConfigurationChanged) {
+      _configureFocusManager();
+    }
+
+    final reconnectConfigurationChanged =
+        old.refreshOnReconnect != newOptions.refreshOnReconnect ||
+        old.reconnectStream != newOptions.reconnectStream;
+    if (reconnectConfigurationChanged) {
+      _configureReconnectListener();
     }
   }
 
@@ -1022,8 +1069,7 @@ mixin UseRequestMixin<TData, TParams> {
   late UseRequestState<TData, TParams> _state;
 
   void initUseRequest({
-    @Deprecated('该参数从未被使用，Mixin 内部自行管理 Notifier，将在未来版本移除')
-    WidgetRef? ref,
+    @Deprecated('该参数从未被使用，Mixin 内部自行管理 Notifier，将在未来版本移除') WidgetRef? ref,
     required Service<TData, TParams> service,
     UseRequestOptions<TData, TParams>? options,
 

@@ -121,6 +121,12 @@ class PollingController<T> {
   /// 轮询失败回调
   final void Function(dynamic error)? onError;
 
+  /// 轮询运行状态变化回调
+  ///
+  /// `isPolling` 为 `true` 表示已启动且未暂停。Hook 可通过此回调把控制器内部
+  /// 状态同步到响应式状态，避免 `pause()` / `resume()` 后界面仍显示旧值。
+  final void Function(bool isPolling)? onStateChange;
+
   /// 定时器
   Timer? _timer;
 
@@ -136,7 +142,15 @@ class PollingController<T> {
     this.shouldPoll,
     this.onSuccess,
     this.onError,
+    this.onStateChange,
   });
+
+  void _notifyStateChange(bool previous) {
+    final current = isRunning;
+    if (current != previous) {
+      onStateChange?.call(current);
+    }
+  }
 
   /// 开始轮询
   ///
@@ -150,9 +164,11 @@ class PollingController<T> {
     // 防止重复启动
     if (_isRunning) return;
 
+    final previous = isRunning;
     _isRunning = true;
     _isPaused = false;
     _scheduleNext();
+    _notifyStateChange(previous);
   }
 
   /// 停止轮询（彻底停止）
@@ -164,10 +180,12 @@ class PollingController<T> {
   /// polling.stop();
   /// ```
   void stop() {
+    final previous = isRunning;
     _isRunning = false;
     _isPaused = false;
     _timer?.cancel();
     _timer = null;
+    _notifyStateChange(previous);
   }
 
   /// 暂停轮询（可恢复）
@@ -182,9 +200,11 @@ class PollingController<T> {
     // 未运行时不能暂停
     if (!_isRunning) return;
 
+    final previous = isRunning;
     _isPaused = true;
     _timer?.cancel();
     _timer = null;
+    _notifyStateChange(previous);
   }
 
   /// 恢复轮询
@@ -199,8 +219,10 @@ class PollingController<T> {
     // 必须是运行中且已暂停才能恢复
     if (!_isRunning || !_isPaused) return;
 
+    final previous = isRunning;
     _isPaused = false;
     _scheduleNext();
+    _notifyStateChange(previous);
   }
 
   /// 立即执行一次，然后继续轮询
@@ -281,7 +303,13 @@ class PollingController<T> {
   /// }
   /// ```
   void dispose() {
-    stop();
+    // dispose 可能发生在 Hook Element 已进入 unmount 阶段，此时再通过
+    // onStateChange 请求重建会触发 framework 断言。释放资源时直接清理内部
+    // 状态；业务主动调用 stop/pause/resume 时仍正常发送状态通知。
+    _isRunning = false;
+    _isPaused = false;
+    _timer?.cancel();
+    _timer = null;
   }
 
   /// 当前是否在轮询中（运行且未暂停）
