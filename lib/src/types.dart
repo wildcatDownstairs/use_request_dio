@@ -316,19 +316,38 @@ class UseRequestOptions<TData, TParams> {
   /// - Riverpod 版：同样支持该配置，并且可以通过 notifier 暴露的
   ///   `refreshDeps(deps, action: ...)` 手动触发。
   ///
-  /// 类似 ahooks 的 `refreshDeps`，当依赖项变化时自动重新请求。
+  /// 类似 ahooks 的 `refreshDeps`：依赖项变化时触发一次 `refresh()`。
+  ///
+  /// **重要：[refreshDeps] 只决定"什么时候重新请求"，不决定"用什么参数请求"。**
+  /// 默认动作是 `refresh()`，而 `refresh()` 复用的是上一次请求的参数，
+  /// **不会**读取本帧新算出的 [defaultParams]。因此下面这种写法是错的——
+  /// `categoryId` 变了，但请求带的还是旧值：
   ///
   /// ```dart
-  /// final categoryId = useState(1);
-  ///
-  /// final result = useRequest(
+  /// // ❌ 参数模式 + refreshDeps：依赖变了，请求参数不变
+  /// useRequest(
   ///   fetchProducts,
   ///   options: UseRequestOptions(
   ///     defaultParams: categoryId.value,
-  ///     refreshDeps: [categoryId.value],  // categoryId 变化时刷新
+  ///     refreshDeps: [categoryId.value],  // refresh() 复用旧参数
   ///   ),
   /// );
   /// ```
+  ///
+  /// 若依赖"就是请求参数"（筛选/搜索/翻页），改用闭包模式 `useRequestFn`，
+  /// 让参数走闭包、[refreshDeps] 只当触发器：
+  ///
+  /// ```dart
+  /// // ✅ 闭包模式：条件即状态，变化即刷新，请求永远读最新状态
+  /// useRequestFn(
+  ///   () => fetchProducts(categoryId.value),
+  ///   options: UseRequestOptions(refreshDeps: [categoryId.value]),
+  /// );
+  /// ```
+  ///
+  /// 参数模式下确需依赖自动刷新时，用 [refreshDepsAction] 显式带新参数。
+  /// [refreshDeps] 复用旧参数的正确用武之地是"依赖变了但参数没变"——
+  /// 例如切换语言（参数不变、只是重新拉取本地化数据）。
   final List<Object?>? refreshDeps;
 
   /// 依赖变化时触发的自定义动作

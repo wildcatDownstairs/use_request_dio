@@ -8,7 +8,42 @@
 [![Flutter CI](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml/badge.svg)](https://github.com/wildcatDownstairs/use_request_dio/actions/workflows/dart.yml)
 [![Web Demo](https://img.shields.io/badge/Web%20Demo-GitHub%20Pages-0ea5a4)](https://wildcatdownstairs.github.io/use_request_dio/)
 
-# demo
+# useRequest 组件库文档
+
+> 面向 Flutter 的通用异步请求管理库，借鉴 ahooks 的 `useRequest` 思路，提供自动/手动请求、轮询、防抖/节流、聚焦刷新、失败重试、延迟 loading、取消请求、数据变更等能力。
+
+- Hook 版入口：`useRequest`（参数模式） / `useRequestFn`（闭包模式）（`lib/src/use_request.dart`）
+- Riverpod 版入口：`UseRequestNotifier` / `createUseRequestProvider` / `UseRequestBuilder`（`lib/src/use_request_riverpod.dart`）
+- HTTP 适配器：`DioHttpAdapter`（`lib/src/utils/dio_adapter.dart`）
+- 类型与配置：`UseRequestOptions`、`UseRequestResult`、`UseRequestState`（`lib/src/types.dart`）
+
+> **⚠️ 必读：[参数从哪来——闭包模式、参数模式与 refreshDeps](#参数从哪来闭包模式参数模式与-refreshdeps)**
+> `refreshDeps` 只决定"什么时候重新请求"，不负责"用什么参数请求"。
+> 在 Hook 场景里，筛选/搜索这类"依赖变了参数也要变"的情况请用闭包模式 `useRequestFn`；
+> 纯 Riverpod Provider / Builder 路径则用 `refreshDepsAction` 或 notifier 的
+> `refreshDeps(..., action: ...)` 显式带新参数，否则会遇到"tab 切了但请求参数不变"的经典问题。
+
+## 目录
+
+- [Demo](#demo)
+- [给 LLM Agent 看的](#给-llm-agent-看的)
+- [特性概览](#特性概览)
+- [安装与引入](#安装与引入)
+- [快速上手](#快速上手)
+- [参数从哪来：闭包模式、参数模式与 refreshDeps](#参数从哪来闭包模式参数模式与-refreshdeps)
+- [HTTP 语义层（DioHttpAdapter）](#http-语义层diohttpadapter)
+- [API 参考](#api-参考)
+- [功能详解与示例](#功能详解与示例)
+- [最佳实践](#最佳实践)
+- [真实示例（摘自示例文件）](#真实示例摘自示例文件)
+- [Flutter Web Demo 与渲染器选择](#flutter-web-demo-与渲染器选择)
+- [常见问题（FAQ）](#常见问题faq)
+- [参考实现位置](#参考实现位置)
+
+---
+
+## Demo
+
 - 在线体验（GitHub Pages）：https://wildcatdownstairs.github.io/use_request_dio/
 - 进入示例目录并安装依赖： `cd example && flutter pub get`
 - 按平台启动：
@@ -19,14 +54,16 @@
 - 示例首页（渐进式教学示例）：`example/lib/main.dart`
 - 历史 Demo 聚合页（保留）：`example/lib/demo/use_request_demo_page.dart`
 
+---
+
 ## 给 LLM Agent 看的
 
 ### 给人类看的（复制给 Agent）
 
-把下面这段发给你的 Agent（Codex / Claude Code / Cursor 等）。  
-复制后，Agent 会做三件事：  
-1. 在你当前项目安装/配置 `use_request` 依赖；  
-2. 自动挑选并试点改造 1 个“最小网络请求模块”；  
+把下面这段发给你的 Agent（Codex / Claude Code / Cursor 等）。
+复制后，Agent 会做三件事：
+1. 在你当前项目安装/配置 `use_request` 依赖；
+2. 自动挑选并试点改造 1 个"最小网络请求模块"；
 3. 输出改造结果与是否继续扩展的建议。
 
 ```text
@@ -39,15 +76,6 @@ https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/docs/ll
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/docs/llm-agent-quickstart.zh-CN.md
 ```
-
-# useRequest 组件库文档
-
-> 面向 Flutter 的通用异步请求管理库，借鉴 ahooks 的 `useRequest` 思路，提供自动/手动请求、轮询、防抖/节流、聚焦刷新、失败重试、延迟 loading、取消请求、数据变更等能力。
-
-- Hook 版入口：`useRequest`（`lib/src/use_request.dart`）
-- Riverpod 版入口：`UseRequestNotifier` / `createUseRequestProvider` / `UseRequestBuilder`（`lib/src/use_request_riverpod.dart`）
-- HTTP 适配器：`DioHttpAdapter`（`lib/src/utils/dio_adapter.dart`）
-- 类型与配置：`UseRequestOptions`、`UseRequestResult`、`UseRequestState`（`lib/src/types.dart`）
 
 ---
 
@@ -72,11 +100,14 @@ curl -fsSL https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/m
 - 缓存一致性：`mutate((_) => null)` 会同步清理对应 `cacheKey` 的缓存条目
 - 分页辅助：`PaginationHelpers.pageParams` 支持 `shouldReset`，可在筛选/刷新场景重置页码计数
 
-### 高级功能（v2.0 新增）
+### 高级功能
 - **HTTP 语义层**：`DioHttpAdapter` 提供 GET/POST/PUT/DELETE/PATCH 等语义化方法
 - **超时配置**：配合 `HttpRequestConfig` / `DioHttpAdapter` 使用 `connectTimeout`/`receiveTimeout`/`sendTimeout` 精细控制超时
 - **文件上传/下载**：支持进度回调的文件传输功能
 - **重试回调**：`onRetryAttempt` 实时追踪重试进度
+
+### 闭包驱动版（v0.6.0 新增）
+- **`useRequestFn`**：service 为零参闭包，请求条件直接从闭包捕获的外部状态读取；`refreshDeps` 只负责触发时机，天然规避"依赖变化后仍复用旧参数"的问题。详见 [参数从哪来](#参数从哪来闭包模式参数模式与-refreshdeps)。
 
 ---
 
@@ -87,10 +118,10 @@ curl -fsSL https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/m
 ```yaml
 dependencies:
   dio: ^5.9.0
-  flutter_hooks: ^0.20.5
-  flutter_riverpod: ^2.6.1
+  flutter_hooks: ^0.21.3+1
+  flutter_riverpod: ^3.0.3
   # 可选：若你在 UI 里使用 HookConsumerWidget / hooks_riverpod
-  hooks_riverpod: ^2.6.1
+  hooks_riverpod: ^3.0.3
 ```
 
 统一从导出入口引入：
@@ -99,7 +130,7 @@ dependencies:
 import 'package:use_request/use_request.dart';
 ```
 
-若使用 `UseRequestBuilder` 或 Provider 版本，请确保在根部包裹 `ProviderScope`：
+若使用 Riverpod Provider 版本（`createUseRequestProvider`），请确保在根部包裹 `ProviderScope`。`UseRequestBuilder` 内部自管 notifier，本身不依赖 `ProviderScope`：
 
 ```dart
 void main() {
@@ -111,31 +142,9 @@ void main() {
 
 ## 快速上手
 
-### Hook 版（`useRequest`）
+### Hook 版 —— 参数模式（`useRequest`）
 
-适合 `HookWidget` 或 `HookConsumerWidget` 中的本地状态管理。
-
-#### 极简用法
-
-```dart
-// Service 函数：配合 ([_]) 忽略参数
-Future<List<User>> fetchUsers([_]) async => ...;
-
-@override
-Widget build(BuildContext context) {
-  // 自动触发请求（零配置）
-  // 默认传入 null 作为参数，Service 接收后忽略即可
-  final request = useRequest<List<User>, dynamic>(
-    ([_]) => fetchUsers(), 
-    // 无需 options，自动触发
-  );
-
-  if (request.loading) return const CircularProgressIndicator();
-  return ListView(children: ...);
-}
-```
-
-#### 完整示例
+适合 `HookWidget` 或 `HookConsumerWidget` 中的本地状态管理，参数由 `run(params)` 显式传入。
 
 ```dart
 class UserParams { final int id; UserParams(this.id); }
@@ -173,6 +182,33 @@ class UserPage extends HookWidget {
 ```
 
 函数定义参考：`lib/src/use_request.dart:1`。
+
+### Hook 版 —— 闭包模式（`useRequestFn`）
+
+适合"挂载即请求、且不需要外部显式传参"的场景，或者请求条件来自 `useState`/Provider/Riverpod 等外部状态、且希望状态一变就自动带新条件重新请求：
+
+```dart
+Future<List<User>> fetchUsers() async => ...;
+
+@override
+Widget build(BuildContext context) {
+  final request = useRequestFn(fetchUsers);   // 零配置自动触发，无需处理 params
+
+  if (request.loading) return const CircularProgressIndicator();
+  return ListView(children: ...);
+}
+```
+
+```dart
+final keyword = useState('');
+
+final request = useRequestFn(
+  () => searchUsers(keyword.value),   // 闭包读最新 keyword
+  options: UseRequestOptions(refreshDeps: [keyword.value]),
+);
+```
+
+两种模式怎么选、`refreshDeps` 到底如何生效，见下一章 [参数从哪来](#参数从哪来闭包模式参数模式与-refreshdeps)——这是全库最容易踩坑的部分。
 
 ### 组件版（`UseRequestBuilder`）
 
@@ -242,6 +278,466 @@ class RiverpodProviderExample extends ConsumerWidget {
 ```
 
 Provider 工厂参考：`lib/src/use_request_riverpod.dart:286`。
+
+---
+
+## 参数从哪来：闭包模式、参数模式与 refreshDeps
+
+> 这是全库最容易踩坑的一块。如果你只看一章，看这章。
+>
+> 一句话总结：**refreshDeps 只决定"什么时候重新请求"，从来不负责"用什么参数请求"。**
+> 参数要么来自闭包（推荐给自动刷新场景），要么来自 `run(params)`（推荐给手动动作）。
+
+### 两种模式速查
+
+| | 闭包模式 `useRequestFn` | 参数模式 `useRequest` + `run(params)` |
+|---|---|---|
+| service 签名 | `() => api(query)` 零参闭包 | `(params) => api(params)` 显式接参 |
+| 参数来源 | 闭包捕获的外部状态 | 每次 `run(params)` 显式传入 |
+| 依赖变化自动刷新 | ✅ `refreshDeps` 直接可用 | ⚠️ 需要 `refreshDepsAction`，否则复用旧参数 |
+| 分页 `loadMore` | ❌ 把 page 放进外部状态 | ✅ `loadMoreParams` 自动推导下一页 |
+| 典型场景 | 搜索输入、筛选 tab、Hook 上下文里的 Provider/Riverpod 派生条件 | 点击搜索按钮、表单提交、手动刷新 |
+| 可用范围 | `HookWidget` / `HookConsumerWidget` | Hook 版 / 组件版 / Riverpod Provider 版通用 |
+
+### 闭包模式
+
+```dart
+final keyword = useState('');
+final status = useState(0);
+
+final result = useRequestFn(
+  () => fetchOrderList(keyword: keyword.value, status: status.value),
+  options: UseRequestOptions(
+    refreshDeps: [keyword.value, status.value],
+    debounceInterval: const Duration(milliseconds: 300),
+  ),
+);
+```
+
+**心智模型：条件即状态，状态变了就重新请求，请求永远读最新状态。**
+
+- service 是零参闭包，每次 widget rebuild 都会重新创建，闭包捕获的
+  `keyword.value` / `status.value` 天然是最新值。
+- `refreshDeps` 里的值只用来做一件事：变了就触发一次重新执行闭包。
+  它不向 service 传任何东西。
+- 因为参数不经过 `params` 机制，"refreshDeps 复用上一次参数"的语义
+  对闭包模式完全无感——这就是它稳的原因。
+
+适用于：
+
+- **搜索**：输入框内容变化自动搜（配 `debounceInterval`）
+- **筛选**：状态 tab、下拉筛选、日期区间变化自动刷新列表
+- **Provider / Riverpod（Hook 上下文）**：在 `HookWidget` / `HookConsumerWidget` 里，把
+  `context.watch` / `ref.watch` 出来的条件写进闭包即可自动刷新
+
+> **⚠️ 闭包模式是 Hook 入口**：`useRequestFn` 只能在 `HookWidget` /
+> `HookConsumerWidget`（`hooks_riverpod`）里用。若你走的是纯 Provider 路径
+> （`createUseRequestProvider` / `UseRequestBuilder`），service 在 provider
+> 创建时就固定成 `Service<TData, TParams>`，没有"每帧重建闭包"这一环——
+> 此时用 notifier 的 `refreshDeps(deps, action: ...)` 显式带最新参数重发，
+> 等价于 Hook 侧的 `refreshDepsAction`（见下文 [参数模式的组合陷阱](#-参数模式--refreshdeps-的组合陷阱)）。
+
+如果你写过 React 管理后台，这就是你熟悉的那套：
+
+```tsx
+// ahooks 等价写法，同一个心智模型
+const { data } = useRequest(() => fetchOrderList(keyword, status), {
+  refreshDeps: [keyword, status],
+});
+```
+
+#### 闭包模式下的分页
+
+`loadMoreParams` 在闭包模式下无意义（params 恒为 null）。
+把 page 也放进外部状态即可：
+
+```dart
+final page = useState(1);
+
+final result = useRequestFn(
+  () => fetchList(page: page.value, keyword: keyword.value),
+  options: UseRequestOptions(
+    refreshDeps: [page.value, keyword.value],
+  ),
+);
+
+// 翻页：
+onNextPage: () => page.value++;
+// 改筛选条件时记得回到第一页：
+onKeywordChange: (v) { keyword.value = v; page.value = 1; }
+```
+
+### 参数模式
+
+```dart
+final result = useRequest<OrderDetail, int>(
+  fetchOrderDetail,           // (orderId) => Future<OrderDetail>
+  options: UseRequestOptions(manual: true),
+);
+
+// 用户点了某一行：
+onTap: (order) => result.run(order.id);
+```
+
+**心智模型：参数是动作的一部分，每次动作显式带参。**
+
+- service 显式声明参数类型，`run(params)` / `runAsync(params)` 每次传入。
+- `refresh()` 会复用上一次 `run` 的参数原样重发——这在参数模式下是
+  合理的："把刚才那次请求再来一遍"。
+- 类型安全完整：`params`、`cacheKey`、`loadMoreParams`、`onSuccess`
+  拿到的都是强类型参数。
+
+适用于：
+
+- **点击搜索**：用户点按钮才发请求，参数从表单收集
+- **提交**：创建/更新/删除等动作，`manual: true` + `run(payload)`
+- **手动刷新**：`refresh()` 重发上一次请求
+
+#### ⚠️ 参数模式 + refreshDeps 的组合陷阱
+
+**不要这样写**（这是最常见的错误用法）：
+
+```dart
+// ❌ 错误：以为 refreshDeps 变化会带上新的 defaultParams
+final params = useMemoized(() => buildParams(status), [status]);
+final result = useRequest(
+  fetchList,
+  options: UseRequestOptions(
+    defaultParams: params,
+    refreshDeps: [status],   // status 变了 → refresh() → 复用【旧】params！
+  ),
+);
+```
+
+`refreshDeps` 变化触发的是 `refresh()`，而 `refresh()` 的定义是
+"用上一次请求的参数重发"。新算出来的 `defaultParams` 只在首次自动
+请求时被读取，之后不会再被 `refreshDeps` 路径使用。上面这段代码里
+`status` 切换后，请求带的还是旧 status。
+
+如果确实需要参数模式 + 依赖自动刷新，用 `refreshDepsAction` 显式带新参数：
+
+```dart
+// ✅ 正确：refreshDepsAction 里自己决定用什么参数
+final latestParams = useRef(params)..value = params;
+final runRef = useRef<void Function(ListParams)?>(null);
+
+final result = useRequest(
+  fetchList,
+  options: UseRequestOptions(
+    defaultParams: params,
+    refreshDeps: [status],
+    refreshDepsAction: () => runRef.value?.call(latestParams.value),
+  ),
+);
+runRef.value = result.run;
+```
+
+但一般来说——**需要写 refreshDepsAction 的时候，先问自己是不是该用闭包模式**。
+上面这坨 ref 中转代码，用 `useRequestFn` 一行就没了。
+
+### refresh 与 refreshDeps
+
+这两个名字都带 refresh，语义完全不同，值得单独讲清楚。
+
+#### refresh()：同一份查询，再问一遍
+
+```dart
+result.refresh();   // = run(上一次的参数)
+```
+
+`refresh()` 不接受参数，永远复用上一次 `run`/`runAsync` 的参数。
+它回答的问题是"**同样的条件，服务端现在的数据是什么**"，不是
+"条件变了帮我用新条件查"。这与 ahooks 完全一致。
+
+#### refreshDeps：外部世界变了，该重新问了
+
+`refreshDeps` 数组里任何一项变化 → 默认触发 `refresh()`。
+
+注意默认动作是 `refresh()`——所以它继承了"复用上一次参数"的语义。
+这个设计**不是缺陷**，它对应的正确场景是：**依赖项和请求参数是两件事**，
+依赖变了但参数没变，你要的只是"重新拿一次数据"。例如：
+
+- **切换语言**：查询参数一个没变，变的是请求头里的 `Accept-Language`，
+  原样重发拿到新语言的文案，正确。
+- **重新登录 / 切换租户**：token/租户上下文在拦截器里，参数不变，重发即可。
+- **手动刷新信号**：一个自增的 counter 放进 refreshDeps，参数不变。
+
+而当"依赖项**就是**请求参数"时（筛选、搜索、翻页），复用旧参数就成了 bug。
+这种场景请用闭包模式，让参数走闭包、refreshDeps 只当触发器。
+
+#### 判断口诀
+
+```
+依赖变化后，参数需要跟着变吗？
+├─ 需要 → 闭包模式 useRequestFn（或 refreshDepsAction）
+└─ 不需要（参数不变，只是要新数据）→ 参数模式 + refreshDeps 直接用
+```
+
+### 完整示例（企业后台常见形态）
+
+以下四个 Demo 都按企业管理后台的常见形态编写，可直接复制改造。
+
+#### 1. CRUD（列表 + 新增 + 删除 + 编辑）
+
+```dart
+class UserManagePage extends HookWidget {
+  const UserManagePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // 列表：闭包模式，无条件参数，挂载即加载
+    final list = useRequestFn(
+      () => api.getUserList(),
+    );
+
+    // 新增：参数模式 + manual，成功后刷新列表
+    final create = useRequest<void, CreateUserPayload>(
+      api.createUser,
+      options: UseRequestOptions(
+        manual: true,
+        onSuccess: (_, __) => list.refresh(),
+      ),
+    );
+
+    // 删除：同上
+    final remove = useRequest<void, int>(
+      api.deleteUser,
+      options: UseRequestOptions(
+        manual: true,
+        onSuccess: (_, __) => list.refresh(),
+      ),
+    );
+
+    return Scaffold(
+      appBar: AppBar(
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: list.refresh),
+        ],
+      ),
+      body: ListView(
+        children: [
+          for (final user in list.data ?? const <User>[])
+            ListTile(
+              title: Text(user.name),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete),
+                onPressed: () => remove.run(user.id),
+              ),
+            ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final payload = await showCreateUserDialog(context);
+          if (payload != null) create.run(payload);
+        },
+      ),
+    );
+  }
+}
+```
+
+要点：读操作用闭包模式；写操作（增删改）用参数模式 + `manual: true`，
+`onSuccess` 里 `list.refresh()` 复用原查询条件刷新——这正是
+"refresh 复用上一次参数"语义的正确用武之地。
+
+#### 2. 分页（页码翻页表格）
+
+```dart
+class OrderTablePage extends HookWidget {
+  const OrderTablePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final page = useState(1);
+    final pageSize = useState(20);
+    final status = useState<int?>(null);   // 顶部状态筛选
+
+    final table = useRequestFn(
+      () => api.getOrderPage(
+        page: page.value,
+        size: pageSize.value,
+        status: status.value,
+      ),
+      options: UseRequestOptions(
+        refreshDeps: [page.value, pageSize.value, status.value],
+        keepPreviousData: true,   // 翻页时旧数据留在屏上，避免闪白
+      ),
+    );
+
+    return Column(
+      children: [
+        StatusFilterTabs(
+          value: status.value,
+          onChanged: (v) {
+            status.value = v;
+            page.value = 1;       // 换筛选条件必须回第一页
+          },
+        ),
+        Expanded(
+          child: OrderDataTable(
+            rows: table.data?.records ?? const [],
+            loading: table.loading,
+          ),
+        ),
+        PaginationBar(
+          page: page.value,
+          total: table.data?.total ?? 0,
+          pageSize: pageSize.value,
+          onPageChanged: (p) => page.value = p,
+          onPageSizeChanged: (s) {
+            pageSize.value = s;
+            page.value = 1;
+          },
+        ),
+      ],
+    );
+  }
+}
+```
+
+要点：page/pageSize/status 全部是外部状态，全部进 `refreshDeps`；
+任何一个变化自动带最新值重新请求。`keepPreviousData: true` 让翻页
+体验平滑。**换筛选条件时手动把 page 归 1**——这是业务规则，库不猜。
+
+#### 3. 无限加载（滚动到底自动追加）
+
+无限加载需要"把每页结果追加到已有列表"，这依赖 `loadMoreParams` +
+`dataMerger`，属于参数模式的地盘：
+
+```dart
+class MessageFeedPage extends HookWidget {
+  const MessageFeedPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final result = useRequest<PageData<Message>, PageQuery>(
+      api.getMessagePage,
+      options: UseRequestOptions(
+        defaultParams: const PageQuery(page: 1, size: 20),
+        // 下一页参数：上一次参数 page + 1
+        loadMoreParams: (last, _) => last.copyWith(page: last.page + 1),
+        // 新页追加到已有列表
+        dataMerger: (prev, next) => PageData(
+          records: [...?prev?.records, ...next.records],
+          total: next.total,
+        ),
+        hasMore: (data) =>
+            data != null && data.records.length < (data.total ?? 0),
+      ),
+    );
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        final nearBottom =
+            n.metrics.pixels >= n.metrics.maxScrollExtent - 200;
+        if (nearBottom && result.hasMore == true && !result.loadingMore) {
+          result.loadMore?.call();
+        }
+        return false;
+      },
+      child: ListView.builder(
+        itemCount: (result.data?.records.length ?? 0) + 1,
+        itemBuilder: (context, i) {
+          final records = result.data?.records ?? const <Message>[];
+          if (i == records.length) {
+            return result.hasMore == true
+                ? const Center(child: CircularProgressIndicator())
+                : const Center(child: Text('没有更多了'));
+          }
+          return MessageTile(records[i]);
+        },
+      ),
+    );
+  }
+}
+```
+
+要点：`loadMoreParams` 在参数模式下才有意义——它需要"上一次的参数"
+来推导下一页，这里"复用上一次参数"恰好是分页的本质。
+
+#### 4. 搜索 + 筛选 + refreshDeps（最容易踩坑场景的标准答案）
+
+企业后台最典型的组合：搜索框 + 状态 tab + 分页表格，全自动刷新。
+
+```dart
+class CouponSearchPage extends HookWidget {
+  const CouponSearchPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final keyword = useState('');
+    final statusTab = useState(0);          // 0=全部 1=可使用 2=待确认...
+    final page = useState(1);
+
+    const statusMap = [-1, 1, 2, 3, 4];     // tab 索引 → 接口 orderStatus
+
+    final list = useRequestFn(
+      // 所有条件从闭包读，永远是最新值
+      () => api.getCouponList(
+        page: page.value,
+        size: 10,
+        orderStatus: statusMap[statusTab.value],
+        keyword: keyword.value.isEmpty ? null : keyword.value,
+      ),
+      options: UseRequestOptions(
+        // 任何条件变化 → 自动重新请求（带最新条件）
+        refreshDeps: [keyword.value, statusTab.value, page.value],
+        // 输入搜索防抖，tab 快速切换也顺带去抖
+        debounceInterval: const Duration(milliseconds: 300),
+        keepPreviousData: true,
+      ),
+    );
+
+    void resetToFirstPage() => page.value = 1;
+
+    return Column(
+      children: [
+        SearchField(
+          onChanged: (v) {
+            keyword.value = v;
+            resetToFirstPage();
+          },
+        ),
+        StatusTabs(
+          index: statusTab.value,
+          onChanged: (i) {
+            statusTab.value = i;
+            resetToFirstPage();
+          },
+        ),
+        Expanded(
+          child: CouponListView(
+            items: list.data?.records ?? const [],
+            loading: list.loading,
+          ),
+        ),
+      ],
+    );
+  }
+}
+```
+
+对照错误写法再看一遍（真实项目里踩过的原样）：
+
+```dart
+// ❌ 参数模式 + refreshDeps：tab 切了，请求参数不变
+final params = useMemoized(
+  () => CouponListParams(orderStatus: statusMap[statusTab.value]),
+  [statusTab.value],
+);
+final list = useRequest(
+  api.getCouponList,
+  options: UseRequestOptions(
+    defaultParams: params,          // 只有第一次请求用它
+    refreshDeps: [statusTab.value], // 之后每次都 refresh() 复用旧参数
+  ),
+);
+```
+
+症状：tab 高亮切换正常、请求也发出去了，但抓包发现 `orderStatus`
+永远是上一个 tab 的值。修法：改成上面的闭包模式，或参数模式 +
+`refreshDepsAction`（见上文"组合陷阱"一节）。
 
 ---
 
@@ -453,7 +949,7 @@ const UseRequestOptions({
 
 - 自动请求：`manual=false` 且提供 `defaultParams` 时，`ready=true` 时挂载后自动拉取
 - 就绪态：`ready=false` 时阻止自动请求/轮询；但手动 `run/runAsync` 不受影响；设为 `true` 后再进入正常流程
-- 依赖刷新：`refreshDeps` / `refreshDepsAction`（Hook 版自动监听 deps；Riverpod 版可通过 notifier 的 `refreshDeps(...)` 触发）
+- 依赖刷新：`refreshDeps` / `refreshDepsAction`（Hook 版自动监听 deps；Riverpod 版可通过 notifier 的 `refreshDeps(...)` 触发）——详细语义与选型见 [参数从哪来](#参数从哪来闭包模式参数模式与-refreshdeps)
 - 缓存与复用：显式传入 `cacheKey` 开启缓存；`cacheTime` 控制缓存有效期（null 表示不过期），`staleTime` 超时后会在保留缓存的同时重新请求
 - 并发隔离：`fetchKey` 将不同 key 的请求计数/取消令牌隔离；但状态仍是单态，只有最后一次 `run` 的 key（active key）会更新 UI，其它 key 的结果视为被覆盖
 - 加载更多：提供 `loadMoreParams` 生成下一页参数、`dataMerger` 合并数据、`hasMore` 判定是否还有更多；`UseRequestResult` 暴露 `loadingMore`、`hasMore` 与 `loadMore`/`loadMoreAsync`
@@ -581,7 +1077,8 @@ notifier.mutate((old) => old == null ? old : old.copyWith(name: '新名字'));
 ## 最佳实践
 
 - 强类型：为 `TData` 与 `TParams` 提供精确类型，避免使用 `dynamic`
-- ProviderScope：使用 `UseRequestBuilder` 或 Riverpod Provider 时务必添加 `ProviderScope`
+- 参数来源先想清楚：依赖变化需要带新参数就用 `useRequestFn`（闭包模式），依赖变化只是"重新问一遍"就用参数模式 + `refreshDeps`（见 [参数从哪来](#参数从哪来闭包模式参数模式与-refreshdeps)）
+- ProviderScope：仅 Riverpod Provider 路径（`createUseRequestProvider` / `ConsumerWidget`）需要；`UseRequestBuilder` 本身不需要
 - 回调与副作用：首推在 `onSuccess` 中做后续处理，避免在 UI 中到处散落逻辑
 - 刷新与轮询：合理设置间隔，避免高频请求造成压力；必要时结合节流
 - 错误处理：统一在 `onError` 或 UI 层进行错误展示与埋点
@@ -625,18 +1122,22 @@ flutter build web --release --web-renderer canvaskit
 ## 常见问题（FAQ）
 
 - Q：`UseRequestBuilder` 必须在 `ProviderScope` 下吗？
-  - A：是的，它是 `ConsumerStatefulWidget`，建议在根部包裹 `ProviderScope`。
+  - A：不需要。`UseRequestBuilder` 内部直接管理 `UseRequestNotifier`，本身不依赖 Riverpod 容器。
+- Q：什么时候必须加 `ProviderScope`？
+  - A：当你用 `createUseRequestProvider`、`ConsumerWidget`、`WidgetRef` 这类 Riverpod Provider 路径时需要；纯 Hook 路径和 `UseRequestBuilder` 不需要。
 - Q：Hook 版如何在普通 `StatelessWidget` 使用？
   - A：Hook 版需要 `HookWidget` 或在 `HookBuilder` 环境中使用。
 - Q：`refreshOnReconnect` 是否生效？
   - A：该选项目前为占位，跨平台网络重连检测未统一实现。
+- Q：为什么筛选 tab 切换了，接口参数还是旧的？
+  - A：大概率是参数模式下只写了 `refreshDeps` 没写 `refreshDepsAction`——`refreshDeps` 触发的默认 `refresh()` 会复用上一次参数。改用闭包模式 `useRequestFn`，或参照 [组合陷阱](#-参数模式--refreshdeps-的组合陷阱) 手写 `refreshDepsAction`。
 
 ---
 
 ## 参考实现位置
 
 ### 核心入口
-- `useRequest`：`lib/src/use_request.dart`
+- `useRequest` / `useRequestFn`：`lib/src/use_request.dart`
 - `UseRequestNotifier`：`lib/src/use_request_riverpod.dart`
 - `createUseRequestProvider`：`lib/src/use_request_riverpod.dart`
 - `UseRequestBuilder`：`lib/src/use_request_riverpod.dart`
@@ -663,6 +1164,6 @@ flutter build web --release --web-renderer canvaskit
 
 ### 补充说明
 
-- 示例 App 已包裹 ProviderScope （ example/lib/main.dart:6-8 ），可直接运行
+- 示例 App 已包裹 `ProviderScope`（`example/lib/main.dart:6-8`），这样 Provider 示例可以直接运行；但这不是 `UseRequestBuilder` 的前置条件
 - 示例依赖本地包路径（ example/pubspec.yaml:37-43 ），在示例中运行可实时验证库改动
 - 库统一导出入口： lib/use_request.dart:1 （项目中引用 package:use_request/use_request.dart ）
