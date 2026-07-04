@@ -1027,6 +1027,47 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   );
 }
 
+/// 闭包驱动版 useRequest（closure mode）。
+///
+/// 与 [useRequest] 的区别：service 是零参闭包，请求数据一律从闭包捕获的
+/// 外部状态（useState / Provider / Riverpod / widget 字段）读取，
+/// `refreshDeps` 只负责"什么时候重新请求"，不参与参数传递。
+///
+/// 这是"依赖变化 → 自动带最新条件重新请求"场景的推荐写法：
+///
+/// ```dart
+/// final keyword = useState('');
+///
+/// final result = useRequestFn(
+///   () => searchProducts(keyword.value),   // 永远读最新 keyword
+///   options: UseRequestOptions(
+///     refreshDeps: [keyword.value],        // keyword 变了自动重发
+///   ),
+/// );
+/// ```
+///
+/// 对比参数模式 `useRequest(service)` + `run(params)`：
+/// - 闭包模式：条件即状态，变化即刷新，不经过 params 机制，
+///   因此不受"refreshDeps 复用上一次参数"语义的影响。
+/// - 参数模式：参数由每次 `run(params)` 显式传入，适合点击搜索、
+///   提交表单等一次性动作。
+///
+/// 注意：闭包模式下 `loadMoreParams` 无意义（params 恒为 null），
+/// 分页/无限加载请把 page 也放进外部状态与 `refreshDeps`。
+UseRequestResult<TData, Null> useRequestFn<TData>(
+  Future<TData> Function() service, {
+  UseRequestOptions<TData, Null>? options,
+}) {
+  // 每帧更新 ref：轮询、聚焦刷新等长生命周期回调经 fetchDataRef 间接调用时，
+  // 保证执行的是最新一帧的闭包（读到最新的外部状态）。
+  final serviceRef = useRef(service);
+  serviceRef.value = service;
+  return useRequest<TData, Null>(
+    (_) => serviceRef.value(),
+    options: options,
+  );
+}
+
 /// 当请求被更新的请求覆盖时抛出
 class RequestSupersededException implements Exception {
   const RequestSupersededException();

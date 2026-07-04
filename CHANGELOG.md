@@ -1,39 +1,82 @@
-> 维护约定：自本版本起，更新日志统一使用简体中文。
+> 维护约定：自本版本起，更新日志同时提供简体中文与英文，便于 pub.dev 直接阅读。
+
+> Maintenance note: Starting from this version, the changelog is maintained in both Simplified Chinese and English for better readability on pub.dev.
+
+## 0.6.0
+
+- 新增: 闭包驱动版入口 `useRequestFn`（closure mode）。service 为零参闭包，请求条件一律从闭包捕获的外部状态读取，`refreshDeps` 仅作为触发器；适用于搜索、筛选、Provider/Riverpod 派生条件等“依赖变化需带最新参数重新请求”的场景，不受 `refreshDeps` 复用上一次参数语义的影响。
+- 文档: README 新增《参数从哪来——闭包模式、参数模式与 refreshDeps》一章，系统说明两种参数来源模式的选型、`refresh` / `refreshDeps` 语义差异与组合陷阱，附 CRUD、分页、无限加载、搜索 + 筛选四个完整管理后台示例；同步补充目录导航。
+- 测试: 新增 `useRequestFn` 闭包时效性回归测试，覆盖 `refreshDeps` 变化后闭包必须读到最新筛选值，以及 `refresh()` 必须走最新一帧闭包（而非挂载时的旧闭包）。
+
+- Added: `useRequestFn` is a closure-mode entrypoint where the service is a zero-argument closure and request conditions are always read from captured external state. `refreshDeps` acts only as a trigger, making it suitable for search, filters, and Provider/Riverpod-derived conditions that must re-request with the latest inputs instead of reusing previous params.
+- Docs: Added a new README section, "Where do params come from? Closure mode, params mode, and refreshDeps", covering when to choose each param source model, the semantic differences between `refresh` and `refreshDeps`, common composition pitfalls, and four complete admin-style examples for CRUD, pagination, infinite loading, and search plus filters. The document navigation was also updated.
+- Tests: Added regression tests for `useRequestFn` closure freshness, covering both that the closure reads the latest filter value after `refreshDeps` changes, and that `refresh()` uses the most recent frame's closure rather than the one captured at mount.
 
 ## 0.5.1
 
-- 修复：相同 `cacheKey` 的并发请求命中 pending cache 时不再取消正在复用的 Dio 请求。
-- 修复：`HttpRequestConfig.cancelToken` 与 `UseRequestOptions.cancelToken` 统一关联到内部令牌，外部令牌和 `result.cancel()` 均可中断底层请求，内部取消不会反向废弃外部令牌。
-- 修复：Riverpod `updateOptions()` 动态启用、替换或关闭 `refreshOnFocus`、`refreshOnReconnect`、`reconnectStream`、`pollingWhenHidden` 时会同步更新监听器。
-- 修复：Hook 版 `isPolling` 改为响应式状态，调用 `pausePolling()` / `resumePolling()` 后立即更新；控制器卸载时静默释放，避免对已销毁 Widget 请求重建。
-- 修复：`HttpRequestConfig` 值语义纳入 Dio `Options` 中会影响真实请求的字段，避免 headers、responseType、编码器等变化被误判为相同请求。
-- 测试：增加 pending 去重与取消、双向令牌关联、动态聚焦/重连监听、轮询响应式状态和 `Options` 值语义的组合测试。
+- 修复: 相同 `cacheKey` 的并发请求命中 pending cache 时不再取消正在复用的 Dio 请求。
+- 修复: `HttpRequestConfig.cancelToken` 与 `UseRequestOptions.cancelToken` 统一关联到内部令牌，外部令牌和 `result.cancel()` 均可中断底层请求，内部取消不会反向废弃外部令牌。
+- 修复: Riverpod `updateOptions()` 动态启用、替换或关闭 `refreshOnFocus`、`refreshOnReconnect`、`reconnectStream`、`pollingWhenHidden` 时会同步更新监听器。
+- 修复: Hook 版 `isPolling` 改为响应式状态，调用 `pausePolling()` / `resumePolling()` 后立即更新；控制器卸载时静默释放，避免对已销毁 Widget 请求重建。
+- 修复: `HttpRequestConfig` 值语义纳入 Dio `Options` 中会影响真实请求的字段，避免 headers、responseType、编码器等变化被误判为相同请求。
+- 测试: 增加 pending 去重与取消、双向令牌关联、动态聚焦 / 重连监听、轮询响应式状态和 `Options` 值语义的组合测试。
+
+- Fixed: Concurrent requests with the same `cacheKey` no longer cancel an in-flight Dio request when they hit the pending cache.
+- Fixed: `HttpRequestConfig.cancelToken` and `UseRequestOptions.cancelToken` are now linked to the same internal token chain, so both the external token and `result.cancel()` can abort the underlying request, while internal cancellation does not invalidate the external token in reverse.
+- Fixed: Riverpod `updateOptions()` now updates listeners correctly when `refreshOnFocus`, `refreshOnReconnect`, `reconnectStream`, or `pollingWhenHidden` are enabled, replaced, or disabled at runtime.
+- Fixed: In the Hook implementation, `isPolling` is now reactive and updates immediately after `pausePolling()` or `resumePolling()`. Controllers are also released silently on dispose to avoid scheduling rebuilds for destroyed widgets.
+- Fixed: The `HttpRequestConfig` value semantics now include Dio `Options` fields that affect the real request, preventing changes such as headers, `responseType`, or encoders from being treated as the same request by mistake.
+- Tests: Added combined coverage for pending deduplication and cancellation, bidirectional token wiring, dynamic focus and reconnect listeners, reactive polling state, and `Options` value semantics.
 
 ## 0.5.0
 
 > 本版本包含若干破坏性变更（BREAKING CHANGE），详见下方标注项；其余为向后兼容的缺陷修复。
 
-- 修复（P0）：自动请求 effect 不再依赖 `defaultParams`，消除内联构造未重写 `==` 的参数对象（如 `HttpRequestConfig`）导致的"请求 → 重建 → 再请求"无限循环；参数变化触发刷新请改用 `refreshDeps`。
-  BREAKING CHANGE: 若此前依赖"`defaultParams` 每次变化都会重新请求"这一（错误）行为，需改用 `refreshDeps: [yourParam]` 显式声明。
-- 修复（P0）：缓存去重的 pending 清理改用 `then + onError`，消除失败请求触发的 Zone 未处理异步异常（此前会向全局错误处理器上报假崩溃）。
-- 新增（P0）：`HttpRequestConfig` 增加 `cancelToken` 字段；useRequest 会自动注入内部令牌，`cancel()` 现在能真正中断底层 Dio 请求（用户显式设置的令牌优先）。
-- 修复（P0）：Riverpod `UseRequestBuilder` 的 options 更新现在正确传播——切换 `ready`、变更 `refreshDeps`、更新回调闭包均生效。
-- 修复（P1）：`refreshDeps` 触发刷新时优先复用最近一次请求参数（对齐 ahooks `refresh` 语义），最近参数不可用时回退 `defaultParams`；Hook 版与 Riverpod 版行为统一。
-- 修复（P1）：`refresh()`/`loadMore()` 在从未请求过时不再同步抛出 `StateError`，统一转为被吞掉的 `Future.error`。
-- 修复（P1）：`cancel()` 现在同时取消排队中的防抖/节流调用。
-- 修复（P1）：请求失败不再清除仍在 `cacheTime` 有效期内的缓存条目（SWR 语义：后台再验证失败保留旧数据）。
-  BREAKING CHANGE: 若此前依赖"请求失败即清缓存"这一行为强制下次拿到全新数据，需改为显式调用 `clearCacheEntry`。
-- 修复（P1）：轮询、聚焦刷新、重连刷新的回调改经 ref 调用最新一帧实现，消除 stale closure（此前 `onSuccess`/`dataMerger` 等未列入 effect keys 的配置变化后轮询仍用旧值）。
-- 修复（P1）：`Throttler` 的 maxWait 立即执行分支补齐清理，消除事件循环繁忙时排队 trailing 被双重执行的问题；排队等待者共享本次执行结果。
-- 修复（P1）：`TData` 可空时 service 合法返回 `null` 现在会清空 `data`，不再被旧数据吞掉。
-- 修复（P2）：fresh 缓存命中时补发观察者 `onFinally` 事件，保证 `onRequest`/`onFinally` 打点配对（用户回调仍与 ahooks 一致不触发）。
-- 新增（P2）：`HttpRequestConfig` 实现值语义 `==`/`hashCode`（回调、`extra`、`cancelToken` 不参与比较），修复 `keepPreviousData=false` 下相同参数重复请求导致的数据闪空。
-  BREAKING CHANGE: 若此前将 `HttpRequestConfig` 实例放入 `Set`/用作 `Map` key 并依赖对象恒等语义，比较结果会变化。
-- 重构（P2）：Web 可见性监听从已弃用的 `dart:html` 迁移到 `package:web` + `dart:js_interop`，兼容 WASM 编译目标（新增依赖 `web: ^1.1.1`）。
-- 变更（P2）：`UseRequestBuilder` 改为普通 `StatefulWidget`，不再要求包裹 `ProviderScope`；`UseRequestMixin.initUseRequest` 的 `ref` 参数从未被使用，标记为弃用并改为可选。
-- 变更（P2）：Hook 版 `isPolling` 改为直接派生自轮询控制器状态，移除可能脱节的影子布尔。
-- 文档（P2）：`fetchKey` 文档明确与 ahooks v2 的语义差异（单份状态归属最新 key，非最新 key 的结果被丢弃）。
-- 测试：新增 P0 回归测试 8 条、P1/P2 回归测试 11 条。
+> This release contains several BREAKING CHANGEs, marked inline below. The remaining fixes are backward-compatible bug fixes.
+
+- 修复（P0）: 自动请求 effect 不再依赖 `defaultParams`，消除内联构造未重写 `==` 的参数对象（如 `HttpRequestConfig`）导致的“请求 -> 重建 -> 再请求”无限循环；参数变化触发刷新请改用 `refreshDeps`。
+  BREAKING CHANGE: 若此前依赖“`defaultParams` 每次变化都会重新请求”这一错误行为，需改用 `refreshDeps: [yourParam]` 显式声明。
+- 修复（P0）: 缓存去重的 pending 清理改用 `then + onError`，消除失败请求触发的 Zone 未处理异步异常（此前会向全局错误处理器上报假崩溃）。
+- 新增（P0）: `HttpRequestConfig` 增加 `cancelToken` 字段；useRequest 会自动注入内部令牌，`cancel()` 现在能真正中断底层 Dio 请求（用户显式设置的令牌优先）。
+- 修复（P0）: Riverpod `UseRequestBuilder` 的 options 更新现在正确传播，切换 `ready`、变更 `refreshDeps`、更新回调闭包均生效。
+- 修复（P1）: `refreshDeps` 触发刷新时优先复用最近一次请求参数（对齐 ahooks `refresh` 语义），最近参数不可用时回退 `defaultParams`；Hook 版与 Riverpod 版行为统一。
+- 修复（P1）: `refresh()` / `loadMore()` 在从未请求过时不再同步抛出 `StateError`，统一转为被吞掉的 `Future.error`。
+- 修复（P1）: `cancel()` 现在同时取消排队中的防抖 / 节流调用。
+- 修复（P1）: 请求失败不再清除仍在 `cacheTime` 有效期内的缓存条目（SWR 语义：后台再验证失败保留旧数据）。
+  BREAKING CHANGE: 若此前依赖“请求失败即清缓存”这一行为强制下次拿到全新数据，需改为显式调用 `clearCacheEntry`。
+- 修复（P1）: 轮询、聚焦刷新、重连刷新的回调改经 ref 调用最新一帧实现，消除 stale closure（此前 `onSuccess` / `dataMerger` 等未列入 effect keys 的配置变化后轮询仍用旧值）。
+- 修复（P1）: `Throttler` 的 maxWait 立即执行分支补齐清理，消除事件循环繁忙时排队 trailing 被双重执行的问题；排队等待者共享本次执行结果。
+- 修复（P1）: `TData` 可空时 service 合法返回 `null` 现在会清空 `data`，不再被旧数据吞掉。
+- 修复（P2）: fresh 缓存命中时补发观察者 `onFinally` 事件，保证 `onRequest` / `onFinally` 打点配对（用户回调仍与 ahooks 一致不触发）。
+- 新增（P2）: `HttpRequestConfig` 实现值语义 `==` / `hashCode`（回调、`extra`、`cancelToken` 不参与比较），修复 `keepPreviousData=false` 下相同参数重复请求导致的数据闪空。
+  BREAKING CHANGE: 若此前将 `HttpRequestConfig` 实例放入 `Set` / 用作 `Map` key 并依赖对象恒等语义，比较结果会变化。
+- 重构（P2）: Web 可见性监听从已弃用的 `dart:html` 迁移到 `package:web` + `dart:js_interop`，兼容 WASM 编译目标（新增依赖 `web: ^1.1.1`）。
+- 变更（P2）: `UseRequestBuilder` 改为普通 `StatefulWidget`，不再要求包裹 `ProviderScope`；`UseRequestMixin.initUseRequest` 的 `ref` 参数从未被使用，标记为弃用并改为可选。
+- 变更（P2）: Hook 版 `isPolling` 改为直接派生自轮询控制器状态，移除可能脱节的影子布尔。
+- 文档（P2）: `fetchKey` 文档明确与 ahooks v2 的语义差异（单份状态归属最新 key，非最新 key 的结果被丢弃）。
+- 测试: 新增 P0 回归测试 8 条、P1 / P2 回归测试 11 条。
+
+- Fixed (P0): The auto-request effect no longer depends on `defaultParams`, removing the infinite "request -> rebuild -> request again" loop caused by inline param objects without custom `==` such as `HttpRequestConfig`. Use `refreshDeps` when param changes should trigger refreshes.
+  BREAKING CHANGE: If your code relied on the previous incorrect behavior where changes to `defaultParams` re-triggered requests automatically, switch to an explicit `refreshDeps: [yourParam]`.
+- Fixed (P0): Pending-cache cleanup now uses `then + onError`, preventing failed requests from producing unhandled async exceptions in the Zone that previously surfaced as false crashes to global error handlers.
+- Added (P0): `HttpRequestConfig` now supports `cancelToken`. useRequest injects its internal token automatically, and `cancel()` can now abort the underlying Dio request for real, while still respecting user-provided tokens first.
+- Fixed (P0): Option updates now propagate correctly through Riverpod `UseRequestBuilder`, so toggling `ready`, changing `refreshDeps`, and replacing callback closures all take effect.
+- Fixed (P1): Refreshes triggered by `refreshDeps` now prefer the most recent request params to match ahooks `refresh` semantics, and fall back to `defaultParams` only when the latest params are unavailable. Hook and Riverpod behavior is now aligned.
+- Fixed (P1): `refresh()` and `loadMore()` no longer throw synchronous `StateError`s when nothing has ever run. They now consistently surface as swallowed `Future.error`s.
+- Fixed (P1): `cancel()` now also cancels queued debounce and throttle executions.
+- Fixed (P1): Failed requests no longer clear cache entries that are still valid under `cacheTime`, following SWR semantics where stale data is retained if background revalidation fails.
+  BREAKING CHANGE: If your code relied on "failure clears cache immediately" to force the next read to fetch fresh data, call `clearCacheEntry` explicitly instead.
+- Fixed (P1): Polling, focus refresh, and reconnect refresh callbacks now invoke the latest frame via refs, removing stale-closure issues where polling could keep using outdated values after changes to options like `onSuccess` or `dataMerger` that were not part of effect keys.
+- Fixed (P1): The immediate-execution branch of `Throttler.maxWait` now performs full cleanup, preventing queued trailing calls from running twice under a busy event loop. Waiting callers now share the same execution result.
+- Fixed (P1): When `TData` is nullable and the service legitimately returns `null`, `data` is now cleared instead of leaving stale data visible.
+- Fixed (P2): Observer `onFinally` is now emitted for fresh-cache hits as well, so `onRequest` and `onFinally` telemetry stays paired. User callbacks still remain consistent with ahooks and are not fired for cache hits.
+- Added (P2): `HttpRequestConfig` now implements value-based `==` and `hashCode` excluding callbacks, `extra`, and `cancelToken`, fixing data flicker when identical params are requested repeatedly with `keepPreviousData=false`.
+  BREAKING CHANGE: If you stored `HttpRequestConfig` instances in a `Set` or used them as `Map` keys while relying on identity semantics, comparisons will now behave differently.
+- Refactor (P2): Web visibility handling moved from deprecated `dart:html` to `package:web` plus `dart:js_interop`, making it compatible with WASM compilation targets (new dependency: `web: ^1.1.1`).
+- Changed (P2): `UseRequestBuilder` is now a regular `StatefulWidget` and no longer requires wrapping in `ProviderScope`. The unused `ref` argument of `UseRequestMixin.initUseRequest` is now deprecated and optional.
+- Changed (P2): The Hook implementation of `isPolling` now derives directly from the polling controller state, removing the previous shadow boolean that could drift out of sync.
+- Docs (P2): Clarified in the `fetchKey` docs how this library differs from ahooks v2: state belongs to the latest key only, and results from stale keys are discarded.
+- Tests: Added 8 new P0 regression tests and 11 new P1 / P2 regression tests.
 
 ## 0.3.5
 
