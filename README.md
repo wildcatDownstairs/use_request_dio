@@ -68,13 +68,13 @@
 
 ```text
 Please follow this guide in my current project (not in use_request package repo), install use_request, and migrate one smallest network module first:
-https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/docs/llm-agent-quickstart.zh-CN.md
+https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/doc/llm-agent-quickstart.zh-CN.md
 ```
 
 ### 给 LLM Agent 看的（直接执行）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/docs/llm-agent-quickstart.zh-CN.md
+curl -fsSL https://raw.githubusercontent.com/wildcatDownstairs/use_request_dio/main/doc/llm-agent-quickstart.zh-CN.md
 ```
 
 ---
