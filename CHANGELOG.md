@@ -2,6 +2,14 @@
 
 > Maintenance note: Starting from this version, the changelog is maintained in both Simplified Chinese and English for better readability on pub.dev.
 
+## 0.6.1
+
+- 文档: 继续补强 `useRequest` / `useRequestFn`、`defaultParams`、`refreshDeps`、`refreshDepsAction` 的选型说明，新增“参数模式里误塞闭包”的反例，并为 Flutter / Dart 初学者补充更直白的调用过程解释，降低对 JS/TS 背景知识的依赖。
+- 注释: 同步更新 `UseRequestOptions` 的 API 注释，让 IDE 悬浮提示直接说明 `defaultParams` 与 `refreshDepsAction` 的真实职责和适用场景。
+
+- Docs: Expanded the guidance around `useRequest` / `useRequestFn`, `defaultParams`, `refreshDeps`, and `refreshDepsAction`, added a concrete counter-example for "closure hidden inside params mode", and included a more beginner-friendly explanation of the call flow so the docs no longer assume JS/TS background knowledge.
+- Comments: Updated the `UseRequestOptions` API docs so IDE hover text explains the actual role and intended scenarios of `defaultParams` and `refreshDepsAction`.
+
 ## 0.6.0
 
 - 新增: 闭包驱动版入口 `useRequestFn`（closure mode）。service 为零参闭包，请求条件一律从闭包捕获的外部状态读取，`refreshDeps` 仅作为触发器；适用于搜索、筛选、Provider/Riverpod 派生条件等“依赖变化需带最新参数重新请求”的场景，不受 `refreshDeps` 复用上一次参数语义的影响。

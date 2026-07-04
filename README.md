@@ -299,6 +299,48 @@ Provider 工厂参考：`lib/src/use_request_riverpod.dart:286`。
 | 典型场景 | 搜索输入、筛选 tab、Hook 上下文里的 Provider/Riverpod 派生条件 | 点击搜索按钮、表单提交、手动刷新 |
 | 可用范围 | `HookWidget` / `HookConsumerWidget` | Hook 版 / 组件版 / Riverpod Provider 版通用 |
 
+### 为什么是两个入口，不是一个 `useRequest(fn)`
+
+这不是为了多造一个 API，而是 Dart 这边确实需要把两种语义拆开。
+
+如果你完全不关心 JS/TS，可以只记这一句：
+
+- `useRequest`：库会在你调用 `run(params)` 时，把这份 `params` 传给 service
+- `useRequestFn`：库不会给 service 传参数，service 自己去读外部状态
+
+- 参数模式需要的 service 签名是 `Future<T> Function(TParams)`。
+- 闭包模式需要的 service 签名是 `Future<T> Function()`。
+- 如果把两者硬塞进一个 `useRequest(fn)`，公开签名就只能放宽成 `Function` 或类似 `Object?` 的写法，再在内部做运行时分流。
+
+可以把它理解成下面这两种完全不同的调用过程：
+
+```dart
+// 参数模式：库负责把参数传进去
+final request = useRequest(fetchUser);
+request.run(123); // 内部效果接近 fetchUser(123)
+
+// 闭包模式：库只负责“再执行一次这个函数”
+final request = useRequestFn(() => fetchUser(userId.value));
+request.refresh(); // 内部效果接近 (() => fetchUser(userId.value))()
+```
+
+对初学者来说，关键区别不是“函数”和“闭包”这几个字，而是：
+
+- **参数模式**：请求参数放在 `run(...)` 里
+- **闭包模式**：请求参数放在 `() => ...` 里面
+
+这样做的问题有两个：
+
+- **静态类型关系会被冲淡**。现在 `useRequest<TData, TParams>` 里，`params`、`defaultParams`、`cacheKey`、`loadMoreParams`、`onSuccess(data, params)` 这些能力是连在一起的。若 service 改成宽泛的 `Function`，这一整串类型约束都会变弱。
+- **运行时分流在 Dart 里并不适合作为公开 API 的基础**。Flutter release/AOT 下 `dart:mirrors` 不可用；而且就算不谈反射，命名函数、匿名函数、捕获外部状态的闭包，在运行时看到的都是 callable 对象，API 设计也不该依赖“这个值看起来像哪种函数”去猜语义。
+
+所以这里的选择是：
+
+- `useRequest`：参数由 `run(params)` 传进来。
+- `useRequestFn`：参数来自闭包捕获的外部状态。
+
+这比“一个入口里自动猜”更明确，也能把类型检查保住。
+
 ### 闭包模式
 
 ```dart
@@ -413,6 +455,53 @@ final result = useRequest(
 "用上一次请求的参数重发"。新算出来的 `defaultParams` 只在首次自动
 请求时被读取，之后不会再被 `refreshDeps` 路径使用。上面这段代码里
 `status` 切换后，请求带的还是旧 status。
+
+还有一种更隐蔽的错法：**表面上在用参数模式，实际上请求参数来自闭包**。
+
+```dart
+// ❌ 能执行，但 run(params) 与真实请求条件已经脱钩
+final keyword = useState('banana');
+
+final result = useRequest<List<User>, String>(
+  (_) => searchUsers(keyword.value),
+  options: UseRequestOptions(manual: true),
+);
+
+result.run('apple');
+```
+
+这段代码里：
+
+- `run('apple')` 记录下来的 params 是 `'apple'`
+- service 真正发请求时读的是 `keyword.value`
+- 如果此时 `keyword.value == 'banana'`，请求实际发出去的是 `banana`
+
+于是 `onSuccess(data, params)` 里拿到的 `params` 是 `'apple'`，但服务端查询条件
+其实是 `banana`。代码不会报错，语义却已经错位。遇到这种需求，要么改成真正的
+参数模式 `useRequest(searchUsers)`，要么直接改成闭包模式 `useRequestFn(() => searchUsers(keyword.value))`。
+
+#### `defaultParams` 和 `refreshDepsAction` 该怎么理解
+
+这两个属性不是“参数自动跟着状态更新”的通用开关，作用范围都比较明确。
+
+- `defaultParams`：主要用于**首次自动请求**。另外，在少数“框架需要一个参数，但当前没有可用的上一次参数”的路径里，它会作为后备参数使用，例如首次 `refresh()` / 首次 `refreshDeps` 触发前还没有成功记录过参数时。
+- `refreshDepsAction`：它不是默认推荐写法，而是**参数模式下给依赖变化指定明确动作**。因为 `refreshDeps` 的默认行为是调用 `refresh()`，而 `refresh()` 天生就是“用上一次参数再请求一次”。
+
+初学者可以这样记：
+
+- `defaultParams` 像“页面第一次加载时先用哪份参数”
+- `refreshDepsAction` 像“依赖变了以后，不要用默认动作，改成我自己指定这次怎么发”
+
+换句话说：
+
+- 依赖变了，而且**请求参数也要跟着变**：优先用 `useRequestFn`
+- 依赖变了，但**参数本来就不该变**：直接用 `refreshDeps`
+- 依赖变了，而且**你必须留在参数模式里自己决定新参数**：再写 `refreshDepsAction`
+
+`refreshDepsAction` 常见于两类场景：
+
+- 纯 Riverpod Provider / Builder 路径，没有 `useRequestFn` 这种“每次 rebuild 重建闭包”的入口
+- 你明确要保留参数模式能力，例如 `loadMoreParams`、`cacheKey(params)`、`run(payload)` 这些都还要继续按强类型参数工作
 
 如果确实需要参数模式 + 依赖自动刷新，用 `refreshDepsAction` 显式带新参数：
 
