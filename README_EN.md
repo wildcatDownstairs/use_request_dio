@@ -300,6 +300,58 @@ class RiverpodProviderExample extends ConsumerWidget {
 | Typical scenarios | Search input, filter tabs, Provider/Riverpod-derived conditions in a Hook context | Click-to-search, form submit, manual refresh |
 | Availability | `HookWidget` / `HookConsumerWidget` | Hook / Builder / Riverpod Provider — all |
 
+### Why two entries instead of one `useRequest(fn)`?
+
+This is not API inflation for its own sake. In Dart, these two semantics should
+be separated.
+
+If you do not care about JS/TS history, keep just this one sentence:
+
+- `useRequest`: the library passes `params` into the service when you call `run(params)`
+- `useRequestFn`: the library passes no params; the service reads external state by itself
+
+- Params mode needs a service shaped like `Future<T> Function(TParams)`.
+- Closure mode needs a service shaped like `Future<T> Function()`.
+- If one `useRequest(fn)` tried to accept both, the public signature would have
+  to be widened to something like `Function` or `Object?`, then split at runtime.
+
+You can also read it as two very different call flows:
+
+```dart
+// Params mode: the library passes the params in
+final request = useRequest(fetchUser);
+request.run(123); // roughly: fetchUser(123)
+
+// Closure mode: the library only "runs this function again"
+final request = useRequestFn(() => fetchUser(userId.value));
+request.refresh(); // roughly: (() => fetchUser(userId.value))()
+```
+
+For beginners, the key difference is not the terms "function" and "closure". It
+is simply this:
+
+- **Params mode**: request params live in `run(...)`
+- **Closure mode**: request params live inside `() => ...`
+
+That causes two problems:
+
+- **It weakens the static type relationship**. In `useRequest<TData, TParams>`,
+  `params`, `defaultParams`, `cacheKey`, `loadMoreParams`, and
+  `onSuccess(data, params)` all line up around the same `TParams`. A wide
+  `Function`-based API would dilute that contract.
+- **Runtime dispatch is a poor foundation for a public Dart API**. In Flutter
+  release/AOT, `dart:mirrors` is unavailable. Even aside from reflection, named
+  functions, anonymous functions, and closures that capture external state are
+  all just callable objects at runtime; the API should not rely on guessing
+  semantics from that.
+
+So the split is explicit:
+
+- `useRequest`: params come from `run(params)`.
+- `useRequestFn`: params come from captured external state.
+
+That keeps the semantics readable and preserves type checking.
+
 ### Closure mode
 
 ```dart
@@ -409,6 +461,66 @@ A `refreshDeps` change triggers `refresh()`, and `refresh()` is defined as "re-r
 with the last request's params". The freshly computed `defaultParams` is only read
 on the first auto request; the `refreshDeps` path never reads it again. So after
 `status` switches, the request still carries the old status.
+
+There is another, more subtle mistake: **the code looks like params mode, but the
+actual request params come from a closure**.
+
+```dart
+// ❌ It runs, but run(params) is no longer the real request condition
+final keyword = useState('banana');
+
+final result = useRequest<List<User>, String>(
+  (_) => searchUsers(keyword.value),
+  options: UseRequestOptions(manual: true),
+);
+
+result.run('apple');
+```
+
+In this snippet:
+
+- `run('apple')` stores `'apple'` as the request params
+- the service actually reads `keyword.value`
+- if `keyword.value == 'banana'`, the real request goes out with `banana`
+
+So `onSuccess(data, params)` receives `'apple'`, while the server query condition
+was really `banana`. The code does not crash, but the semantics are already off.
+If you need this shape, either switch to true params mode
+`useRequest(searchUsers)`, or switch fully to closure mode
+`useRequestFn(() => searchUsers(keyword.value))`.
+
+#### How to think about `defaultParams` and `refreshDepsAction`
+
+These are not general switches for "make params follow state automatically". Both
+have narrow, specific jobs.
+
+- `defaultParams`: mainly for the **first auto request**. In a few framework-owned
+  paths where a request param is needed but there is no usable "last params" yet,
+  it also serves as a fallback, such as the first `refresh()` / first
+  `refreshDeps` trigger before any valid params have been recorded.
+- `refreshDepsAction`: not the default recommendation; it is the **explicit action
+  hook for dependency changes while staying in params mode**. That exists because
+  the default `refreshDeps` behavior is `refresh()`, and `refresh()` is defined
+  as "run again with the last params".
+
+For beginners, a simple way to remember them:
+
+- `defaultParams`: "which params should the page use on its first auto request?"
+- `refreshDepsAction`: "when deps change, do not use the default refresh behavior; use my explicit action instead"
+
+In practice:
+
+- Dependency changed and **request params should change too**: prefer `useRequestFn`
+- Dependency changed but **params should stay the same**: plain `refreshDeps`
+- Dependency changed and **you must stay in params mode and choose the new params
+  yourself**: use `refreshDepsAction`
+
+Typical `refreshDepsAction` cases:
+
+- Pure Riverpod Provider / Builder paths, where there is no `useRequestFn`-style
+  "rebuild the closure each frame" entry
+- Cases where you intentionally keep params-mode features such as
+  `loadMoreParams`, `cacheKey(params)`, or `run(payload)`
 
 If you truly need params mode + dependency auto-refresh, use `refreshDepsAction` to
 pass the new params explicitly:

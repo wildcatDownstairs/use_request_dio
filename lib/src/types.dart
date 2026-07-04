@@ -278,7 +278,16 @@ class UseRequestOptions<TData, TParams> {
 
   /// 初始请求参数
   ///
-  /// 用于自动请求时的默认参数。当 `manual: false` 时，若未提供此参数，默认传递 `null`。
+  /// 主要用于首次自动请求的参数。当 `manual: false` 时，若未提供此参数，默认传递 `null`。
+  ///
+  /// 它不是“依赖一变就自动带上最新参数”的通道：
+  /// - [refreshDeps] 默认触发的是 `refresh()`，会优先复用上一次请求参数
+  /// - 新算出来的 [defaultParams] 不会因为依赖变化而被自动重新读取
+  ///
+  /// 初学者可以先把它理解成：“页面第一次自动请求时默认用哪份参数”。
+  ///
+  /// 另外，在少数框架内部需要“找一个可用参数”的路径里，它也会作为后备值使用，
+  /// 例如首次 `refresh()` 前还没有记录过有效参数时。
   ///
   /// ```dart
   /// useRequest(fetchUser, options: UseRequestOptions(defaultParams: 1));
@@ -352,7 +361,15 @@ class UseRequestOptions<TData, TParams> {
 
   /// 依赖变化时触发的自定义动作
   ///
-  /// 默认行为是重新执行请求，可通过此选项自定义。
+  /// 默认行为是执行 `refresh()`；若你在参数模式下希望“依赖变了时带上新的参数”，
+  /// 就需要在这里显式调用 `run(newParams)` / `runAsync(newParams)`。
+  ///
+  /// 初学者可以先把它理解成：“依赖变了以后，这次请求具体怎么发，由我自己写”。
+  ///
+  /// 大多数搜索/筛选类场景，更直接的写法仍然是闭包模式 `useRequestFn`。
+  /// 这个选项更适合：
+  /// - 纯 Riverpod Provider / Builder 路径
+  /// - 必须保留参数模式能力（如 `loadMoreParams`、`cacheKey(params)`）的场景
   ///
   /// ```dart
   /// refreshDepsAction: () {
