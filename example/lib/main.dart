@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui';
+import 'dart:math';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +18,20 @@ const Map<String, dynamic> _githubHeaders = {
   'User-Agent': 'use-request-showcase',
 };
 
+/// Claude 暖色 + Zed 线稿风格调色板。
+class _Ink {
+  static const paper = Color(0xFFF3EFE7); // 米白背景
+  static const panel = Color(0xFFFAF8F2); // 卡片填充
+  static const grid = Color(0x14000000); // 线稿网格
+  static const gridStrong = Color(0x24000000); // 角标十字
+  static const hairline = Color(0xFFDED8CB); // 卡片描边
+  static const ink = Color(0xFF201D18); // 主文字
+  static const muted = Color(0xFF6B6459); // 次文字
+  static const clay = Color(0xFFD97757); // Claude 主强调色
+  static const clayDeep = Color(0xFFB0512B); // 深强调（文字）
+  static const clayTint = Color(0x1AD97757); // 强调浅底
+}
+
 /// useRequest 渐进式展示站点。
 ///
 /// 页面目标：
@@ -31,7 +45,7 @@ class UseRequestShowcaseApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF0EA5A4),
+      seedColor: const Color(0xFFD97757),
       brightness: Brightness.light,
     );
 
@@ -41,13 +55,13 @@ class UseRequestShowcaseApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: colorScheme,
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF0F5FB),
+        scaffoldBackgroundColor: const Color(0xFFF3EFE7),
         fontFamily: 'Avenir',
         cardTheme: CardThemeData(
           elevation: 0,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
       ),
@@ -117,6 +131,18 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
       demoBuilder: (onSourceChanged) =>
           _OptionsWorkbenchDemo(onSourceChanged: onSourceChanged),
     ),
+    _DemoSection(
+      key: GlobalKey(),
+      level: 'Level 5',
+      title: '闭包模式 vs refreshDeps 陷阱',
+      subtitle: 'useRequestFn 闭包驱动 · 对照参数模式复用旧参数的坑',
+      description:
+          '切换排序 tab，观察接口实际发送的 sort 参数。参数模式下切 tab 参数不变（经典 bug），闭包模式始终带最新条件。',
+      tags: const ['useRequestFn', 'refreshDeps', 'refreshDepsAction'],
+      initialSourceCode: _sourceLevel5,
+      demoBuilder: (onSourceChanged) =>
+          _ClosureVsParamsDemo(onSourceChanged: onSourceChanged),
+    ),
   ];
 
   @override
@@ -185,11 +211,11 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
                                             14,
                                           ),
                                           color: selected
-                                              ? const Color(0x3328C5B8)
+                                              ? const Color(0x26D97757)
                                               : Colors.transparent,
                                           border: Border.all(
                                             color: selected
-                                                ? const Color(0xFF27B6A9)
+                                                ? const Color(0xFFCF7550)
                                                 : const Color(0x33FFFFFF),
                                           ),
                                         ),
@@ -202,7 +228,7 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 color: selected
-                                                    ? const Color(0xFF0F766E)
+                                                    ? const Color(0xFFB0512B)
                                                     : const Color(0xFF64748B),
                                               ),
                                             ),
@@ -213,7 +239,7 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
                                                 fontWeight: FontWeight.w700,
                                                 fontSize: 14,
                                                 color: selected
-                                                    ? const Color(0xFF0F4D54)
+                                                    ? const Color(0xFF7A3B22)
                                                     : const Color(0xFF1E293B),
                                               ),
                                             ),
@@ -260,6 +286,7 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
                                 section: section,
                                 index: index,
                                 isSelected: _selectedIndex == index,
+                                onActivate: () => _scrollToSection(index),
                               ),
                             );
                           }),
@@ -290,7 +317,7 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF0EA5A4), Color(0xFF22D3EE)],
+                  colors: [Color(0xFFD97757), Color(0xFFEBA986)],
                 ),
               ),
               child: const Text(
@@ -306,7 +333,7 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(999),
-                color: const Color(0x3328C5B8),
+                color: const Color(0x26D97757),
               ),
               child: const Text('GitHub API', style: TextStyle(fontSize: 11)),
             ),
@@ -336,7 +363,7 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF0F766E),
+              color: Color(0xFFB0512B),
               letterSpacing: 0.1,
             ),
           ),
@@ -362,11 +389,38 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
             spacing: 8,
             runSpacing: 8,
             children: const [
+              _TopBadge(label: '0.6.1 · useRequestFn'),
               _TopBadge(label: '自动/手动请求'),
               _TopBadge(label: '防抖/节流'),
               _TopBadge(label: '轮询/重试/超时'),
               _TopBadge(label: '缓存/并发/加载更多'),
             ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: () => _scrollToSection(4),
+                icon: const Icon(Icons.new_releases_outlined),
+                label: const Text('先看最新：useRequestFn'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _scrollToSection(3),
+                icon: const Icon(Icons.tune),
+                label: const Text('查看全量 Options 实验台'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'GitHub Pages 预览当前只挂载正在查看的示例，未选中的卡片不会启动 Hook、请求和源码高亮。这样能减少首屏请求数，也能缓解 Flutter Web 上的滚动和输入卡顿。',
+            style: TextStyle(
+              height: 1.42,
+              color: Color(0xFF64748B),
+              fontSize: 12.5,
+            ),
           ),
         ],
       ),
@@ -388,7 +442,7 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
               child: FilledButton.tonal(
                 style: FilledButton.styleFrom(
                   backgroundColor: selected
-                      ? const Color(0xFF0EA5A4)
+                      ? const Color(0xFFD97757)
                       : const Color(0x33FFFFFF),
                   foregroundColor: selected
                       ? Colors.white
@@ -432,11 +486,13 @@ class _DemoSectionCard extends StatefulWidget {
     required this.section,
     required this.index,
     required this.isSelected,
+    required this.onActivate,
   });
 
   final _DemoSection section;
   final int index;
   final bool isSelected;
+  final VoidCallback onActivate;
 
   @override
   State<_DemoSectionCard> createState() => _DemoSectionCardState();
@@ -485,15 +541,15 @@ class _DemoSectionCardState extends State<_DemoSectionCard> {
               gradient: LinearGradient(
                 colors: [
                   widget.index.isEven
-                      ? const Color(0x3315B4C7)
-                      : const Color(0x33239BEA),
+                      ? const Color(0x26D97757)
+                      : const Color(0x2699897E),
                   const Color(0x19FFFFFF),
                 ],
               ),
               border: Border(
                 bottom: BorderSide(
                   color: widget.isSelected
-                      ? const Color(0xFF31B8AC)
+                      ? const Color(0xFFCF7550)
                       : const Color(0x33A7B2C5),
                 ),
               ),
@@ -546,15 +602,81 @@ class _DemoSectionCardState extends State<_DemoSectionCard> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                widget.section.demoBuilder(_handleSourceChanged),
-                const SizedBox(height: 14),
-                _SourceCodePanel(code: _sourceCode),
-              ],
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              // GitHub Pages 的 Web 预览不再同时挂载所有 demo，
+              // 避免首屏并发请求和多组 Hook 一起运行造成卡顿。
+              child: widget.isSelected
+                  ? Column(
+                      key: const ValueKey('active-demo'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        widget.section.demoBuilder(_handleSourceChanged),
+                        const SizedBox(height: 14),
+                        _SourceCodePanel(code: _sourceCode),
+                      ],
+                    )
+                  : _InactiveDemoPlaceholder(
+                      key: const ValueKey('inactive-demo'),
+                      title: widget.section.title,
+                      onActivate: widget.onActivate,
+                    ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InactiveDemoPlaceholder extends StatelessWidget {
+  const _InactiveDemoPlaceholder({
+    super.key,
+    required this.title,
+    required this.onActivate,
+  });
+
+  final String title;
+  final VoidCallback onActivate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: Colors.white.withValues(alpha: 0.6),
+        border: Border.all(color: const Color(0x337D8FA8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '当前未挂载此示例',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              color: Color(0xFF7A3B22),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '为了降低 GitHub Pages 上的 Flutter Web 卡顿，未选中的卡片不会启动真实请求、Hook 逻辑和源码高亮。点击下面按钮后，再加载“$title”的运行效果。',
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.45,
+              color: Color(0xFF516176),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: onActivate,
+            icon: const Icon(Icons.play_circle_outline),
+            label: const Text('加载此示例'),
           ),
         ],
       ),
@@ -2425,63 +2547,355 @@ class _OptionGroup extends StatelessWidget {
   }
 }
 
+/// Level 5：闭包模式（`useRequestFn`）对照参数模式 + refreshDeps 的经典坑。
+///
+/// 切换排序 tab 时，直接展示"接口实际发送的 sort 参数"：
+/// - 闭包模式：sort 始终跟随当前 tab。
+/// - 参数模式：`refreshDeps` 触发的 `refresh()` 复用上一次参数，sort 卡在旧值。
+class _ClosureVsParamsDemo extends HookWidget {
+  const _ClosureVsParamsDemo({required this.onSourceChanged});
+
+  final ValueChanged<String> onSourceChanged;
+
+  static const _sortValues = ['stars', 'forks', 'updated'];
+  static const _sortLabels = ['按 Star', '按 Fork', '最近更新'];
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = useTextEditingController(text: 'flutter');
+    final keyword = useState('flutter');
+    final sortTab = useState(0);
+    final isClosure = useState(true);
+    final sentSort = useState('—');
+
+    useEffect(() {
+      onSourceChanged(_sourceLevel5);
+      return null;
+    }, const []);
+
+    useEffect(() {
+      void listener() {
+        final t = controller.text.trim();
+        keyword.value = t.isEmpty ? 'flutter' : t;
+      }
+
+      controller.addListener(listener);
+      return () => controller.removeListener(listener);
+    }, [controller]);
+
+    final adapter = useMemoized(
+      () => DioHttpAdapter.withBaseUrl(_githubBaseUrl),
+    );
+
+    Future<List<String>> runSearch(HttpRequestConfig cfg) async {
+      // 记录接口真正带出去的 sort，供 UI 展示是否跟上了当前 tab。
+      sentSort.value = cfg.queryParameters?['sort']?.toString() ?? '?';
+      final res = await adapter.request<Map<String, dynamic>>(cfg);
+      final items = (res.data?['items'] as List?) ?? const [];
+      return items
+          .take(6)
+          .map((e) => (e as Map)['full_name'].toString())
+          .toList();
+    }
+
+    // ✅ 闭包模式：条件从闭包读，refreshDeps 只当触发器。
+    final closureReq = useRequestFn<List<String>>(
+      () => runSearch(
+        _searchConfig(
+          query: keyword.value,
+          page: 1,
+          perPage: 6,
+          sort: _sortValues[sortTab.value],
+        ),
+      ),
+      options: UseRequestOptions(
+        ready: isClosure.value,
+        refreshDeps: [keyword.value, sortTab.value, isClosure.value],
+        debounceInterval: const Duration(milliseconds: 300),
+        keepPreviousData: true,
+      ),
+    );
+
+    // ❌ 参数模式 + refreshDeps：切 tab 时 refresh() 复用旧参数。
+    final paramCfg = useMemoized(
+      () => _searchConfig(
+        query: keyword.value,
+        page: 1,
+        perPage: 6,
+        sort: _sortValues[sortTab.value],
+      ),
+      [keyword.value, sortTab.value],
+    );
+    final paramsReq = useRequest<List<String>, HttpRequestConfig>(
+      runSearch,
+      options: UseRequestOptions(
+        ready: !isClosure.value,
+        defaultParams: paramCfg,
+        refreshDeps: [keyword.value, sortTab.value, isClosure.value],
+        debounceInterval: const Duration(milliseconds: 300),
+        keepPreviousData: true,
+      ),
+    );
+
+    final loading = isClosure.value ? closureReq.loading : paramsReq.loading;
+    final items =
+        (isClosure.value ? closureReq.data : paramsReq.data) ??
+        const <String>[];
+    final expected = _sortValues[sortTab.value];
+    final matched = sentSort.value == expected;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 模式切换
+        Row(
+          children: [
+            Expanded(
+              child: _ModeButton(
+                label: '闭包模式 useRequestFn',
+                active: isClosure.value,
+                onTap: () => isClosure.value = true,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ModeButton(
+                label: '参数模式 + refreshDeps',
+                active: !isClosure.value,
+                onTap: () => isClosure.value = false,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: '搜索关键字（如 flutter）',
+            prefixIcon: const Icon(Icons.search, size: 18),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _Ink.hairline),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _Ink.hairline),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // 排序筛选 tab
+        Wrap(
+          spacing: 8,
+          children: List.generate(_sortLabels.length, (i) {
+            final selected = sortTab.value == i;
+            return ChoiceChip(
+              label: Text(_sortLabels[i]),
+              selected: selected,
+              onSelected: (_) => sortTab.value = i,
+              selectedColor: _Ink.clayTint,
+              backgroundColor: Colors.white,
+              side: BorderSide(color: selected ? _Ink.clay : _Ink.hairline),
+              labelStyle: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: selected ? _Ink.clayDeep : _Ink.muted,
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 14),
+        // 「接口实际发送」读数：是否跟上当前 tab
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: matched ? _Ink.clayTint : const Color(0x1FB91C1C),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: matched ? _Ink.clay : const Color(0x55B91C1C),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '接口实际发送',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: matched ? _Ink.clayDeep : const Color(0xFFB91C1C),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'GET /search/repositories?sort=${sentSort.value}',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  color: _Ink.ink,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                matched
+                    ? '✓ 与当前 tab（$expected）一致'
+                    : '⚠ 当前 tab 是 $expected，但接口带出去的还是旧值 —— 这正是 refreshDeps 复用上一次参数的坑',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: matched ? _Ink.clayDeep : const Color(0xFFB91C1C),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: LinearProgressIndicator(minHeight: 3),
+          ),
+        _GlassPanel(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final name in items)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Text(
+                    name,
+                    style: const TextStyle(fontSize: 13, color: _Ink.ink),
+                  ),
+                ),
+              if (items.isEmpty)
+                const Text(
+                  '暂无数据',
+                  style: TextStyle(fontSize: 12, color: _Ink.muted),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _InfoBanner(
+          message: isClosure.value
+              ? '闭包模式：请求条件全部从闭包读取，切 tab 后 sort 始终跟随当前选择。'
+              : '参数模式：切 tab 时 refreshDeps 触发 refresh()，复用上一次请求参数，sort 卡在旧值。先切几次排序 tab 看接口发送的 sort。',
+          color: isClosure.value ? _Ink.clayDeep : const Color(0xFFB91C1C),
+        ),
+      ],
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  const _ModeButton({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: active ? _Ink.clay : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: active ? _Ink.clay : _Ink.hairline),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: active ? Colors.white : _Ink.muted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Zed 风格线稿背景：米白纸面 + 细网格 + 角标十字 + 轻噪点。
 class _DecorativeBackdrop extends StatelessWidget {
   const _DecorativeBackdrop();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFEAF2FF), Color(0xFFE6FBF7), Color(0xFFF5F7FD)],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: -90,
-            top: -80,
-            child: _BlurBlob(color: const Color(0x8855DDE0), size: 300),
-          ),
-          Positioned(
-            right: -70,
-            top: 100,
-            child: _BlurBlob(color: const Color(0x884CB9F0), size: 240),
-          ),
-          Positioned(
-            right: 120,
-            bottom: -80,
-            child: _BlurBlob(color: const Color(0x88A5B4FC), size: 220),
-          ),
-        ],
-      ),
+    return const IgnorePointer(
+      child: SizedBox.expand(child: CustomPaint(painter: _WireframePainter())),
     );
   }
 }
 
-class _BlurBlob extends StatelessWidget {
-  const _BlurBlob({required this.color, required this.size});
+class _WireframePainter extends CustomPainter {
+  const _WireframePainter();
 
-  final Color color;
-  final double size;
+  static const double _cell = 116; // 网格间距
 
   @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = _Ink.paper);
+
+    // 细网格线
+    final line = Paint()
+      ..color = _Ink.grid
+      ..strokeWidth = 1;
+    for (double x = _cell; x < size.width; x += _cell) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), line);
+    }
+    for (double y = _cell; y < size.height; y += _cell) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), line);
+    }
+
+    // 网格交点的十字角标（Zed 标志性细节）
+    final cross = Paint()
+      ..color = _Ink.gridStrong
+      ..strokeWidth = 1;
+    const double arm = 4;
+    for (double x = _cell; x < size.width; x += _cell) {
+      for (double y = _cell; y < size.height; y += _cell) {
+        canvas.drawLine(Offset(x - arm, y), Offset(x + arm, y), cross);
+        canvas.drawLine(Offset(x, y - arm), Offset(x, y + arm), cross);
+      }
+    }
+
+    // 轻噪点（用固定种子，避免每帧抖动）
+    final rand = Random(7);
+    final grain = Paint()..color = const Color(0x0A000000);
+    final count = ((size.width * size.height) / 900).clamp(0, 4000).toInt();
+    for (int i = 0; i < count; i++) {
+      canvas.drawRect(
+        Rect.fromLTWH(
+          rand.nextDouble() * size.width,
+          rand.nextDouble() * size.height,
+          1,
+          1,
         ),
-      ),
-    );
+        grain,
+      );
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant _WireframePainter oldDelegate) => false;
 }
 
+/// Zed 风格卡片：纸面填充 + 1px 描边，去掉毛玻璃与重阴影。
 class _GlassPanel extends StatelessWidget {
   const _GlassPanel({
     required this.child,
@@ -2491,35 +2905,25 @@ class _GlassPanel extends StatelessWidget {
 
   final Widget child;
   final EdgeInsetsGeometry padding;
-  final double blur;
+  final double blur; // 兼容旧调用点，线稿风格下不再使用
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xDDF8FCFF), Color(0xBFF2F8FF)],
-            ),
-            border: Border.all(color: const Color(0x8FFFFFFF)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1A0F172A),
-                blurRadius: 24,
-                offset: Offset(0, 10),
-              ),
-            ],
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: _Ink.panel,
+        border: Border.all(color: _Ink.hairline),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F201D18),
+            blurRadius: 10,
+            offset: Offset(0, 2),
           ),
-          child: child,
-        ),
+        ],
       ),
+      child: child,
     );
   }
 }
@@ -2534,15 +2938,15 @@ class _TopBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0x3322C4B8),
+        color: const Color(0x26D97757),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x5520B7A9)),
+        border: Border.all(color: const Color(0x55C87A50)),
       ),
       child: Text(
         label,
         style: const TextStyle(
           fontSize: 11,
-          color: Color(0xFF0F766E),
+          color: Color(0xFFB0512B),
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -2560,13 +2964,13 @@ class _OptionTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0x220EA5A4),
+        color: const Color(0x1AD97757),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         style: const TextStyle(
-          color: Color(0xFF0F766E),
+          color: Color(0xFFB0512B),
           fontWeight: FontWeight.w600,
           fontSize: 11,
         ),
@@ -2675,7 +3079,7 @@ class _SliderOption extends StatelessWidget {
                 valueLabel,
                 style: const TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF0F766E),
+                  color: Color(0xFFB0512B),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -2706,16 +3110,16 @@ class _StatusDot extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: active ? const Color(0x3322C4B8) : const Color(0x22A7B2C5),
+        color: active ? const Color(0x26D97757) : const Color(0x22A7B2C5),
         border: Border.all(
-          color: active ? const Color(0xFF22B8AA) : const Color(0xFF93A5BE),
+          color: active ? const Color(0xFFD98A63) : const Color(0xFF93A5BE),
         ),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 11,
-          color: active ? const Color(0xFF0F766E) : const Color(0xFF516176),
+          color: active ? const Color(0xFFB0512B) : const Color(0xFF516176),
         ),
       ),
     );
@@ -2787,10 +3191,41 @@ class _EventLog extends StatelessWidget {
   }
 }
 
-class _SourceCodePanel extends StatelessWidget {
+class _SourceCodePanel extends StatefulWidget {
   const _SourceCodePanel({required this.code});
 
   final String code;
+
+  @override
+  State<_SourceCodePanel> createState() => _SourceCodePanelState();
+}
+
+class _SourceCodePanelState extends State<_SourceCodePanel> {
+  bool _expanded = false;
+  TextSpan? _highlightedCode;
+
+  @override
+  void didUpdateWidget(covariant _SourceCodePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_expanded && oldWidget.code != widget.code) {
+      _highlightedCode = _buildHighlightedCodeSpan(widget.code);
+    }
+  }
+
+  void _handleExpansionChanged(bool expanded) {
+    if (!expanded) {
+      setState(() {
+        _expanded = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _expanded = true;
+      // 代码高亮是纯展示逻辑，展开前不做正则分段，减少 Web 首屏开销。
+      _highlightedCode ??= _buildHighlightedCodeSpan(widget.code);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2800,6 +3235,7 @@ class _SourceCodePanel extends StatelessWidget {
         blur: 5,
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         child: ExpansionTile(
+          onExpansionChanged: _handleExpansionChanged,
           tilePadding: const EdgeInsets.symmetric(horizontal: 8),
           childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
           title: const Text(
@@ -2819,7 +3255,7 @@ class _SourceCodePanel extends StatelessWidget {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(minWidth: 640),
                   child: SelectableText.rich(
-                    _buildHighlightedCodeSpan(code),
+                    _highlightedCode ?? const TextSpan(text: ''),
                     style: const TextStyle(
                       fontFamily: 'Menlo',
                       fontSize: 12,
@@ -2959,13 +3395,14 @@ HttpRequestConfig _searchConfig({
   required String query,
   required int page,
   required int perPage,
+  String sort = 'stars',
 }) {
   return HttpRequestConfig.get(
     '/search/repositories',
     headers: _githubHeaders,
     queryParameters: {
       'q': query,
-      'sort': 'stars',
+      'sort': sort,
       'order': 'desc',
       'per_page': perPage,
       'page': page,
@@ -3387,4 +3824,33 @@ final request = useRequest<Map<String, dynamic>, HttpRequestConfig>(
     onFinally: callbacksEnabled.value ? (_, __, ___) => log('onFinally') : null,
   ),
 );
+''';
+
+const String _sourceLevel5 = r'''
+// ✅ 闭包模式：条件从闭包读，refreshDeps 只作触发器
+final closureReq = useRequestFn<List<String>>(
+  () => runSearch(
+    _searchConfig(query: keyword.value, sort: sortValues[sortTab.value]),
+  ),
+  options: UseRequestOptions(
+    refreshDeps: [keyword.value, sortTab.value],
+    debounceInterval: Duration(milliseconds: 300),
+  ),
+);
+
+// ❌ 参数模式 + refreshDeps：切 tab 时 refresh() 复用上一次参数
+final paramCfg = useMemoized(
+  () => _searchConfig(query: keyword.value, sort: sortValues[sortTab.value]),
+  [keyword.value, sortTab.value],
+);
+final paramsReq = useRequest<List<String>, HttpRequestConfig>(
+  runSearch,
+  options: UseRequestOptions(
+    defaultParams: paramCfg,          // 仅首次请求使用
+    refreshDeps: [sortTab.value],     // 之后 refresh() 复用旧 params，sort 卡住
+  ),
+);
+
+// 参数模式确需自动刷新时，用 refreshDepsAction 显式带新参数：
+// refreshDepsAction: () => paramsReq.run(paramCfg),
 ''';
