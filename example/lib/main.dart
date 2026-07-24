@@ -3234,39 +3234,42 @@ class _SourceCodePanelState extends State<_SourceCodePanel> {
       child: _GlassPanel(
         blur: 5,
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        child: ExpansionTile(
-          onExpansionChanged: _handleExpansionChanged,
-          tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-          childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-          title: const Text(
-            '查看源码（Dart）',
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-          ),
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 640),
-                  child: SelectableText.rich(
-                    _highlightedCode ?? const TextSpan(text: ''),
-                    style: const TextStyle(
-                      fontFamily: 'Menlo',
-                      fontSize: 12,
-                      height: 1.45,
-                      color: Color(0xFFE2E8F0),
+        child: Material(
+          color: Colors.transparent,
+          child: ExpansionTile(
+            onExpansionChanged: _handleExpansionChanged,
+            tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+            childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            title: const Text(
+              '查看源码（Dart）',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 640),
+                    child: SelectableText.rich(
+                      _highlightedCode ?? const TextSpan(text: ''),
+                      style: const TextStyle(
+                        fontFamily: 'Menlo',
+                        fontSize: 12,
+                        height: 1.45,
+                        color: Color(0xFFE2E8F0),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
