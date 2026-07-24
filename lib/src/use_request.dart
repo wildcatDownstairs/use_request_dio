@@ -144,6 +144,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   );
   // ready=false 时变更的 refreshDeps 会在 ready=true 时补偿触发
   final pendingRefreshDepsRef = useRef<bool>(false);
+  // 标记当前 build 是否已由 refreshDeps 触发请求或自定义动作。
+  // refreshDeps effect 位于自动请求 effect 之前；同帧 ready 恢复时据此避免重复执行。
+  final handledRefreshDepsThisBuildRef = useRef<bool>(false);
+  handledRefreshDepsThisBuildRef.value = false;
 
   // 组件是否仍挂载，避免卸载后更新状态
   final isMountedRef = useRef<bool>(true);
@@ -785,9 +789,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       lastRefreshDepsRef.value = List<Object?>.from(deps);
 
       if (opts.refreshDepsAction != null) {
+        handledRefreshDepsThisBuildRef.value = true;
         opts.refreshDepsAction!();
         pendingRefreshDepsRef.value = false;
       } else if (!opts.manual && opts.ready) {
+        handledRefreshDepsThisBuildRef.value = true;
         pendingRefreshDepsRef.value = false;
         runForRefreshDeps();
       } else {
@@ -796,8 +802,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
     } else if (opts.ready && pendingRefreshDepsRef.value) {
       pendingRefreshDepsRef.value = false;
       if (opts.refreshDepsAction != null) {
+        handledRefreshDepsThisBuildRef.value = true;
         opts.refreshDepsAction!();
       } else if (!opts.manual) {
+        handledRefreshDepsThisBuildRef.value = true;
         runForRefreshDeps();
       }
     }
@@ -999,8 +1007,11 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
   // 请求 → 状态变更 → rebuild → 再请求的死循环。参数变化触发刷新请使用 refreshDeps。
   useEffect(() {
     if (!opts.manual && opts.ready) {
-      // 如果有待执行的 refreshDeps 回放，跳过自动请求避免同帧重复触发
-      if (pendingRefreshDepsRef.value && opts.refreshDeps != null) return null;
+      // refreshDeps 已在当前 build 触发，或仍有待回放任务时，跳过自动请求。
+      if (handledRefreshDepsThisBuildRef.value ||
+          (pendingRefreshDepsRef.value && opts.refreshDeps != null)) {
+        return null;
+      }
       runIfInvocable(opts.defaultParams);
     }
     return null;

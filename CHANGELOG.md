@@ -2,6 +2,18 @@
 
 > Maintenance note: Starting from this version, the changelog is maintained in both Simplified Chinese and English for better readability on pub.dev.
 
+## 0.6.2
+
+- 修复: Hook 版在 `ready` 恢复与 `refreshDeps` 触发或回放发生在同一帧时，不再同时执行依赖刷新和自动请求，避免相同请求重复调用。
+- 修复: `refreshDepsAction` 与 `ready` 同帧变化时，不再额外执行默认自动请求。
+- 测试: 增加参数模式、闭包模式、`refreshDepsAction` 与 Riverpod 对照回归测试。
+- 示例: 为源码展开面板补充透明 `Material`，兼容新版 Flutter 的 `ListTile` 可见性断言，并同步修正 Level 2 导航交互测试。
+
+- Fixed: The Hook implementation no longer runs both dependency refresh and automatic request when `ready` becomes true in the same frame that `refreshDeps` triggers or replays, preventing duplicate service calls.
+- Fixed: A `refreshDepsAction` triggered in the same frame as a `ready` transition no longer causes an additional default automatic request.
+- Tests: Added regression coverage for params mode, closure mode, `refreshDepsAction`, and Riverpod parity.
+- Example: Added a transparent `Material` around the source expansion panel for compatibility with Flutter's newer `ListTile` visibility assertion, and aligned the Level 2 navigation interaction test.
+
 ## 0.6.1
 
 - 文档: 继续补强 `useRequest` / `useRequestFn`、`defaultParams`、`refreshDeps`、`refreshDepsAction` 的选型说明，新增“参数模式里误塞闭包”的反例，并为 Flutter / Dart 初学者补充更直白的调用过程解释，降低对 JS/TS 背景知识的依赖。

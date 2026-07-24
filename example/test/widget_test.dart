@@ -399,7 +399,7 @@ void main() {
     );
     await _pumpFrames(tester);
 
-    final level2Button = find.textContaining('Level 2 · 搜索频率控制（防抖 / 节流）');
+    final level2Button = find.textContaining('Level 2');
     if (level2Button.evaluate().isNotEmpty) {
       await tester.ensureVisible(level2Button.first);
       await tester.tap(level2Button.first, warnIfMissed: false);
