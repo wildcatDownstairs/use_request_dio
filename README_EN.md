@@ -960,7 +960,7 @@ Guideline:
 - Q: Can I use Hook version in a plain `StatelessWidget`?
   - A: Use `HookWidget` or `HookBuilder`.
 - Q: Does `refreshOnReconnect` work out of the box?
-  - A: It's a placeholder unless you provide `reconnectStream`.
+  - A: It works when you provide `reconnectStream`; the library does not include network detection.
 - Q: Why does the API still send the old params after I switch a filter tab?
   - A: Most likely you used params mode with only `refreshDeps` and no
     `refreshDepsAction` — the default `refresh()` reuses the last params. Switch to

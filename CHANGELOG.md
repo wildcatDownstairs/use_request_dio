@@ -2,6 +2,24 @@
 
 > Maintenance note: Starting from this version, the changelog is maintained in both Simplified Chinese and English for better readability on pub.dev.
 
+## 0.6.3
+
+- 修复: `DioHttpAdapter` 现在通过 Dio 自身的配置合并逻辑保留 `validateStatus`、重定向、编码器等基础请求选项，同时继续支持单次请求超时覆盖。
+- 修复: 无参 Hook / Notifier 调用 `mutate()` 时会正确更新或清除对应缓存。
+- 修复: `UseRequestBuilder` 在保留当前请求状态的同时始终调用父组件最新传入的 service；`serviceKey` 仍用于显式重建状态。
+- 修复: `UseRequestNotifier.updateOptions()` 会拒绝同时启用防抖与节流，行为与初始化保持一致。
+- 优化: Hook 仅在初始化时读取首帧缓存，并避免同一次缓存命中重复计算陈旧状态。
+- 文档: 明确 `refreshOnReconnect` 需要外部提供 `reconnectStream`，并弃用未接入请求流程的 `OfflineDetector` 占位接口。
+- 测试: 增加 Dio 配置合并、无参缓存变更、动态选项校验和 Builder service 更新回归测试。
+
+- Fixed: `DioHttpAdapter` now uses Dio's own option composition so base settings such as `validateStatus`, redirects, and codecs are preserved while per-request timeouts can still override them.
+- Fixed: Parameterless Hook and Notifier requests now update or clear their cache correctly after `mutate()`.
+- Fixed: `UseRequestBuilder` now calls the latest service supplied by its parent while preserving request state; `serviceKey` still explicitly resets the state.
+- Fixed: `UseRequestNotifier.updateOptions()` rejects simultaneous debounce and throttle configuration, matching constructor behavior.
+- Improved: The Hook reads initial cache only once and avoids recalculating cache staleness twice for one hit.
+- Docs: Clarified that `refreshOnReconnect` requires an external `reconnectStream`, and deprecated the unused `OfflineDetector` placeholder interface.
+- Tests: Added regressions for Dio option composition, parameterless cache mutation, dynamic option validation, and Builder service updates.
+
 ## 0.6.2
 
 - 修复: Hook 版在 `ready` 恢复与 `refreshDeps` 触发或回放发生在同一帧时，不再同时执行依赖刷新和自动请求，避免相同请求重复调用。

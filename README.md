@@ -147,7 +147,7 @@ void main() {
 适合 `HookWidget` 或 `HookConsumerWidget` 中的本地状态管理，参数由 `run(params)` 显式传入。
 
 ```dart
-class UserParams { final int id; UserParams(this.id); }
+class UserParams { final int id; const UserParams(this.id); }
 Future<User> fetchUser(UserParams p) async {
   final res = await Dio().get('https://jsonplaceholder.typicode.com/users/${p.id}');
   return User.fromJson(res.data);
@@ -1013,7 +1013,7 @@ const UseRequestOptions({
   // ========== 加载与刷新 ==========
   Duration? loadingDelay,           // 延迟显示 loading（避免闪烁）
   bool refreshOnFocus = false,      // 应用获得焦点时自动刷新
-  bool refreshOnReconnect = false,  // 网络重连时自动刷新（占位）
+  bool refreshOnReconnect = false,  // 网络恢复时自动刷新，需提供 reconnectStream
   Stream<bool>? reconnectStream,    // 网络重连事件流
 
   // ========== 缓存配置 ==========
@@ -1048,7 +1048,7 @@ const UseRequestOptions({
 - 频率控制：`debounceInterval` / `throttleInterval` 二选一
 - 重试：`retryCount` 与 `retryInterval` 控制失败重试
 - 延迟 loading：`loadingDelay` 控制进入 loading 的延时，避免闪烁
-- 刷新策略：`refreshOnFocus`、`refreshOnReconnect`（后者为占位，跨平台网络重连尚未统一）
+- 刷新策略：`refreshOnFocus`、`refreshOnReconnect`（后者需外部提供 reconnectStream）
 - 取消令牌：可传入自定义 `CancelToken` 与 `cancel()` 配合使用
 - 生命周期回调：`onBefore`、`onSuccess`、`onError`、`onFinally`
 
@@ -1217,7 +1217,7 @@ flutter build web --release --web-renderer canvaskit
 - Q：Hook 版如何在普通 `StatelessWidget` 使用？
   - A：Hook 版需要 `HookWidget` 或在 `HookBuilder` 环境中使用。
 - Q：`refreshOnReconnect` 是否生效？
-  - A：该选项目前为占位，跨平台网络重连检测未统一实现。
+  - A：生效，但需要同时提供 reconnectStream；库不内置跨平台网络检测。
 - Q：为什么筛选 tab 切换了，接口参数还是旧的？
   - A：大概率是参数模式下只写了 `refreshDeps` 没写 `refreshDepsAction`——`refreshDeps` 触发的默认 `refresh()` 会复用上一次参数。改用闭包模式 `useRequestFn`，或参照 [组合陷阱](#-参数模式--refreshdeps-的组合陷阱) 手写 `refreshDepsAction`。
 
