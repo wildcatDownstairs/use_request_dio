@@ -517,40 +517,29 @@ class DioHttpAdapter {
     CancelToken? cancelToken,
   }) async {
     try {
-      final base = dio.options;
-
-      final mergedHeaders = <String, dynamic>{
-        ...base.headers,
-        ...?config.headers,
-        ...?config.extra?.headers,
-      };
-
-      final mergedQueryParameters = <String, dynamic>{
-        ...base.queryParameters,
-        ...?config.queryParameters,
-      };
-
-      final requestOptions = RequestOptions(
-        path: config.path,
-        method: _methodToString(config.method),
-        data: config.data,
-        queryParameters: mergedQueryParameters,
-        baseUrl: base.baseUrl,
-        connectTimeout: config.connectTimeout ?? base.connectTimeout,
-        sendTimeout: config.sendTimeout ?? base.sendTimeout,
-        receiveTimeout: config.receiveTimeout ?? base.receiveTimeout,
-        headers: mergedHeaders,
-        responseType:
-            config.responseType ??
-            config.extra?.responseType ??
-            base.responseType,
-        contentType:
-            config.contentType ?? config.extra?.contentType ?? base.contentType,
-        extra: {...base.extra, ...?config.extra?.extra},
-        cancelToken: cancelToken ?? config.cancelToken,
-        onSendProgress: config.onSendProgress,
-        onReceiveProgress: config.onReceiveProgress,
-      );
+      final requestOptions = (config.extra ?? Options())
+          .copyWith(
+            method: _methodToString(config.method),
+            sendTimeout: config.sendTimeout,
+            receiveTimeout: config.receiveTimeout,
+            responseType: config.responseType,
+            headers: {...?config.headers, ...?config.extra?.headers},
+          )
+          .compose(
+            dio.options,
+            config.path,
+            data: config.data,
+            queryParameters: config.queryParameters,
+            cancelToken: cancelToken ?? config.cancelToken,
+            onSendProgress: config.onSendProgress,
+            onReceiveProgress: config.onReceiveProgress,
+          );
+      if (config.connectTimeout != null) {
+        requestOptions.connectTimeout = config.connectTimeout;
+      }
+      if (config.contentType != null) {
+        requestOptions.contentType = config.contentType;
+      }
 
       // 执行请求（使用 fetch 以支持 per-request connectTimeout）
       final response = await dio.fetch<T>(requestOptions);

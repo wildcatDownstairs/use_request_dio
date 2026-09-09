@@ -444,7 +444,8 @@ class UseRequestNotifier<TData, TParams>
       );
       cachedData = coordinator.getFresh();
       if (cachedData != null) {
-        notifyRequestObserverCacheHit(cacheKey, coordinator.shouldRevalidate());
+        final shouldRevalidate = coordinator.shouldRevalidate();
+        notifyRequestObserverCacheHit(cacheKey, shouldRevalidate);
         if (mounted) {
           state = state.copyWith(
             loading: false,
@@ -456,7 +457,7 @@ class UseRequestNotifier<TData, TParams>
         }
         // 与 ahooks 一致：纯缓存命中不触发 onSuccess/onFinally 用户回调，
         // 但补发观察者 finally 事件，保证 onRequest/onFinally 打点配对。
-        if (!coordinator.shouldRevalidate()) {
+        if (!shouldRevalidate) {
           notifyRequestObserverFinally(key, params);
           return cachedData;
         }
@@ -745,7 +746,8 @@ class UseRequestNotifier<TData, TParams>
       // 同步写入全局缓存
       if (_lastKey != null) {
         final lastParams = _lastParamsByKey[_lastKey!];
-        if (lastParams != null && options.cacheKey != null) {
+        if (_lastParamsByKey.containsKey(_lastKey!) &&
+            options.cacheKey != null) {
           final ck = options.cacheKey!(lastParams as TParams);
           if (ck.isNotEmpty) {
             if (newData != null) {
@@ -868,6 +870,10 @@ class UseRequestNotifier<TData, TParams>
   /// 仅当工具相关参数发生变化时才会重建对应工具实例，轮询状态（运行/暂停）会被保留。
   /// 回调类字段（onSuccess/cacheKey 等）无条件替换为新引用。
   void updateOptions(UseRequestOptions<TData, TParams> newOptions) {
+    if (newOptions.debounceInterval != null &&
+        newOptions.throttleInterval != null) {
+      throw ArgumentError('debounceInterval 与 throttleInterval 不能同时设置，请二选一');
+    }
     final old = options;
     options = newOptions;
 
@@ -1130,10 +1136,8 @@ extension UseRequestResultExtension<TData, TParams>
 /// 内部自行管理 [UseRequestNotifier]，不依赖 Riverpod 容器，
 /// 因此**无需**包裹在 ProviderScope 中即可使用。
 ///
-/// 注意：[service] 参数使用函数引用比较。为避免 parent rebuild 时因闭包引用变化
-/// 导致 notifier 被不必要地销毁重建，建议：
-/// 1. 使用顶层函数或 static 方法作为 service
-/// 2. 或通过 [serviceKey] 显式控制何时重建
+/// 每次请求读取最新的 [service]，父组件重建时保留请求状态。
+/// 通过 [serviceKey] 显式控制何时销毁并重建 notifier。
 class UseRequestBuilder<TData, TParams> extends StatefulWidget {
   final Service<TData, TParams> service;
   final UseRequestOptions<TData, TParams>? options;
@@ -1178,7 +1182,7 @@ class _UseRequestBuilderState<TData, TParams>
 
   void _bindNotifier() {
     _notifier = UseRequestNotifier<TData, TParams>(
-      service: widget.service,
+      service: (params) => widget.service(params),
       options: widget.options ?? const UseRequestOptions(),
     );
     _state = _notifier.currentState;

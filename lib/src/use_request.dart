@@ -66,7 +66,10 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
 
   String getKey(TParams params) => opts.fetchKey?.call(params) ?? '_default';
 
-  final initialCachedData = _resolveInitialCachedData<TData, TParams>(opts);
+  final initialCachedData = useMemoized(
+    () => _resolveInitialCachedData<TData, TParams>(opts),
+    const [],
+  );
 
   // 使用 Hook 的状态管理（ValueNotifier）保证组件响应式更新
   final stateNotifier = useState(
@@ -391,7 +394,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       );
       cachedData = coordinator.getFresh();
       if (cachedData != null) {
-        notifyRequestObserverCacheHit(cacheKey, coordinator.shouldRevalidate());
+        final shouldRevalidate = coordinator.shouldRevalidate();
+        notifyRequestObserverCacheHit(cacheKey, shouldRevalidate);
         updateState(
           (s) => s.copyWith(
             loading: false,
@@ -405,7 +409,7 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
         // 新鲜时直接返回；陈旧时继续走请求再验证。
         // 与 ahooks 一致：纯缓存命中不触发 onSuccess/onFinally 用户回调，
         // 但补发观察者 finally 事件，保证 onRequest/onFinally 打点配对。
-        if (!coordinator.shouldRevalidate()) {
+        if (!shouldRevalidate) {
           notifyRequestObserverFinally(key, params);
           return cachedData;
         }
@@ -714,7 +718,8 @@ UseRequestResult<TData, TParams> useRequest<TData, TParams>(
       final lastKey = lastKeyRef.value;
       if (lastKey != null) {
         final lastParams = lastParamsMapRef.value[lastKey];
-        if (lastParams != null && opts.cacheKey != null) {
+        if (lastParamsMapRef.value.containsKey(lastKey) &&
+            opts.cacheKey != null) {
           final ck = opts.cacheKey!(lastParams as TParams);
           if (ck.isNotEmpty) {
             if (newData != null) {
@@ -1073,10 +1078,7 @@ UseRequestResult<TData, Null> useRequestFn<TData>(
   // 保证执行的是最新一帧的闭包（读到最新的外部状态）。
   final serviceRef = useRef(service);
   serviceRef.value = service;
-  return useRequest<TData, Null>(
-    (_) => serviceRef.value(),
-    options: options,
-  );
+  return useRequest<TData, Null>((_) => serviceRef.value(), options: options);
 }
 
 /// 当请求被更新的请求覆盖时抛出
