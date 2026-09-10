@@ -265,6 +265,11 @@ class RetryExecutor<T> {
   /// 优先使用用户自定义的 [RetryConfig.shouldRetry]，
   /// 否则使用默认策略：重试网络错误和 5xx 服务器错误。
   bool _shouldRetryError(dynamic error) {
+    if (error is RetryCancelledException ||
+        (error is DioException && error.type == DioExceptionType.cancel)) {
+      return false;
+    }
+
     // 如果提供了自定义判断函数，使用它
     if (config.shouldRetry != null) {
       return config.shouldRetry!(error);

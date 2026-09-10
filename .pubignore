@@ -1,0 +1,15 @@
+.dart_tool/
+.flutter-plugins-dependencies
+.idea/
+.vscode/
+*.iml
+*.log
+.DS_Store
+**/build/
+**/coverage/
+**/pubspec.lock
+/test/_tmp_*
+**/doc/api/
+website/
+doc/architecture-review-0.6.3.zh-CN.md
+doc/refactoring-todo.zh-CN.md

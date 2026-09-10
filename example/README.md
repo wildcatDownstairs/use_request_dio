@@ -1,16 +1,11 @@
-# example
+# Minimal example
 
-A new Flutter project.
+This app keeps two copyable examples: an automatic closure request and a manual request with explicit parameters.
 
-## Getting Started
+```bash
+flutter pub get
+flutter run -d chrome
+flutter test
+```
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The full showcase lives in [`../website`](../website/README.md).

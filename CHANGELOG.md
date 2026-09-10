@@ -2,6 +2,22 @@
 
 > Maintenance note: Starting from this version, the changelog is maintained in both Simplified Chinese and English for better readability on pub.dev.
 
+## 0.7.0
+
+- 重构：Hook、Notifier 与 Builder 共用请求状态机，保留现有公开入口和 API。
+- 新增：同 cacheKey 实例数据同步、UseRequestOptions.shouldRetry 与默认 5 秒的 focusTimespan。
+- 修复：共享 pending 取消按消费者管理；清缓存阻止旧结果回填；mutate 空值保留进行中的请求；ready/deps 同帧变化与 loadingDelay 清理保持一致。
+- 文档与示例：README 精简为最小接入；完整展示迁到 website，example 保留两个可运行用法；补齐取消契约、Dio 接入及未来拆包方案。
+- 构建：CI 分别检查库、example 和 website；库变更触发展示站部署，发布归档排除完整展示站。
+- 行为说明：聚焦刷新默认受 5 秒冷却限制；如需原先每次聚焦都刷新，可设 focusTimespan: Duration.zero。Dio/Riverpod 仍为主包依赖。
+
+- Refactored: Hooks, Notifier, and Builder share a request state machine while retaining existing public entry points and APIs.
+- Added: Same-key cache synchronization, UseRequestOptions.shouldRetry, and focusTimespan with a five-second default.
+- Fixed: Consumer-owned shared pending cancellation, stale writes after cache clearing, null mutation during pending work, same-frame ready/dependency changes, and delayed-loading cleanup.
+- Docs/examples: Short READMEs, a runnable minimal example, a separate website showcase, and explicit cancellation, Dio, and future package-migration contracts.
+- CI: Independent package/example/website checks; library changes trigger website deployment; published archives exclude the full showcase.
+- Behavior: Focus refresh now has a five-second cooldown by default; set focusTimespan: Duration.zero to refresh on every focus. Dio/Riverpod remain main-package dependencies.
+
 ## 0.6.3
 
 - 修复: `DioHttpAdapter` 现在通过 Dio 自身的配置合并逻辑保留 `validateStatus`、重定向、编码器等基础请求选项，同时继续支持单次请求超时覆盖。

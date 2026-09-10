@@ -4,9 +4,12 @@ on:
   push:
     branches: ["main"]
     paths:
-      - "example/**"
+      - "website/**"
+      - "lib/**"
       - ".github/workflows/deploy-pages.yml"
       - "pubspec.yaml"
+      - "pubspec.lock"
+      - "analysis_options.yaml"
       - "README.md"
       - "README_EN.md"
   workflow_dispatch:
@@ -49,12 +52,12 @@ jobs:
           echo "BASE_HREF=${BASE_HREF}" >> "$GITHUB_ENV"
           echo "Using BASE_HREF=${BASE_HREF}"
 
-      - name: Install example dependencies
-        working-directory: example
+      - name: Install website dependencies
+        working-directory: website
         run: flutter pub get
 
       - name: Build web demo
-        working-directory: example
+        working-directory: website
         run: flutter build web --release --base-href "${BASE_HREF}"
 
       - name: Setup Pages
@@ -63,7 +66,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: example/build/web
+          path: website/build/web
 
   deploy:
     needs: build

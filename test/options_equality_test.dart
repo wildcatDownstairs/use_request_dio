@@ -94,5 +94,25 @@ void main() {
       // Scalar keepPreviousData changed, so they are no longer equal
       expect(original, isNot(equals(updated)));
     });
+
+    test('shouldRetry is replaceable with null and ignored by equality', () {
+      final original = UseRequestOptions<String, int>(shouldRetry: (_) => true);
+      const withoutCallback = UseRequestOptions<String, int>();
+
+      expect(original, equals(withoutCallback));
+      expect(original.copyWith(shouldRetry: null).shouldRetry, isNull);
+    });
+
+    test('focusTimespan participates in equality and hashCode', () {
+      const short = UseRequestOptions<String, int>(
+        focusTimespan: Duration(seconds: 1),
+      );
+      const long = UseRequestOptions<String, int>(
+        focusTimespan: Duration(seconds: 2),
+      );
+
+      expect(short, isNot(equals(long)));
+      expect(short.hashCode, isNot(long.hashCode));
+    });
   });
 }

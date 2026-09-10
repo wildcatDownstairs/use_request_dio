@@ -1,7 +1,7 @@
 # 给 LLM Agent 的快速任务说明（在接入方项目中安装 use_request）
 
 你是代码 Agent。请在**当前项目（接入方项目）**中完成一个“最小可验证迁移”任务：  
-安装 `use_request`，并把一个最简单网络请求模块从“直接 Dio 请求”改为“use_request 推荐写法”。
+安装 `use_request`，为一个最简单的异步模块接入请求状态管理，保留现有 service 和 HTTP 客户端。
 
 > 重要：本指南是“试点模式”。你在读完后必须先改造 **1 个最小模块** 做 PoC（Proof of Concept），
 > 确认可行后再给出是否继续扩展到更多模块的建议。
@@ -10,11 +10,8 @@
 
 1. 在当前项目安装并配置 `use_request`（及必要依赖）。
 2. 自动扫描并选择“代码量最少、依赖最少、影响面最小”的网络请求模块作为试点。
-3. 不改动整体页面结构，只做最小网络层迁移。
-4. 将该模块中直接 `Dio().get(...)` / `dio.get(...)` 的写法改为：
-   - `DioHttpAdapter.withBaseUrl(...)`
-   - `createDioService<Map<String, dynamic>>(...)`
-   - `useRequest<..., HttpRequestConfig>(...)`
+3. 不改动整体页面结构，只替换重复的 loading/error/data 管理。
+4. 闭包请求优先用 `useRequestFn(() => existingService())`；按钮提交使用 `useRequest` 与 `manual + run(params)`。已有 Dio、http 或 retrofit service 均可保留。`DioHttpAdapter` 是可选用法，不强制替换现有网络层；需要库管理 Dio transport 取消时参照 [Dio 接入](dio-integration.zh-CN.md)。
 5. 保留原有 UI 行为（加载、错误、刷新、取消、重试等）不变。
 
 ## 执行步骤
@@ -23,7 +20,7 @@
 2. 选出 1 个试点模块（必须说明选择依据）。
 3. 在当前项目安装依赖（若项目已有则复用）：
    - `use_request`
-   - `dio`
+   - `dio`（仅直接使用 Dio API 时）
    - `flutter_hooks`（Hook 方案时）
    - `flutter_riverpod`（Riverpod 方案时）
 4. 在该试点模块内完成最小改造：
@@ -46,7 +43,7 @@
 
 ## 任务完成标准（DoD）
 
-1. 试点模块不再直接依赖裸 `Dio` 请求调用。
+1. 试点模块由 use_request 管理请求状态，保留现有客户端、鉴权和响应解析。
 2. 页面/功能可运行，且原有关键交互行为保持一致。
 3. `dart analyze` 无新增错误。
 4. 提交说明中明确“这是接入方项目的最小模块试点迁移”。

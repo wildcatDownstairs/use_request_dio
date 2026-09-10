@@ -40,3 +40,23 @@ jobs:
       - name: Analyze example
         working-directory: example
         run: flutter analyze
+
+      - name: Test example
+        working-directory: example
+        run: flutter test
+
+      - name: Install website dependencies
+        working-directory: website
+        run: flutter pub get
+
+      - name: Analyze website
+        working-directory: website
+        run: flutter analyze
+
+      - name: Test website
+        working-directory: website
+        run: flutter test
+
+      - name: Build minimal example
+        working-directory: example
+        run: flutter build web --release
