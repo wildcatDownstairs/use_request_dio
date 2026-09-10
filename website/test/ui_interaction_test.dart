@@ -20,7 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:example/main.dart';
+import 'package:use_request_website/main.dart';
 
 // ─── HTTP mock ──────────────────────────────────────────────────────────────
 

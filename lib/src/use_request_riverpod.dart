@@ -6,8 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import 'types.dart';
-import 'use_request.dart'
-    show RequestSupersededException, RequestCancelledException;
 import 'utils/debounce.dart';
 import 'utils/throttle.dart';
 import 'utils/retry.dart';
@@ -68,6 +66,8 @@ class UseRequestNotifier<TData, TParams>
   UseRequestOptions<TData, TParams> options;
 
   final Map<String, CancelToken?> _cancelTokens = {};
+  final Map<String, ({PendingRequestLease<TData> lease, Object owner})>
+  _pendingLeases = {};
   final Map<String, int> _requestCounts = {};
   final Map<String, TParams?> _lastParamsByKey = {};
   String? _lastKey;
@@ -83,12 +83,64 @@ class UseRequestNotifier<TData, TParams>
   LoadingDelayController? _loadingDelayController;
   AppFocusManager? _focusManager;
   StreamSubscription<bool>? _reconnectSub;
+  VoidCallback? _removeCacheListener;
+  String? _activeCacheKey;
+  bool _acceptCacheEvents = true;
+  DateTime? _lastFocusRefreshAt;
+  final ValueNotifier<bool> _pollingState = ValueNotifier(false);
 
   String _getKey(TParams params) =>
       options.fetchKey?.call(params) ?? '_default';
 
   bool _hasLastInvocationForKey(String key) =>
       _lastParamsByKey.containsKey(key);
+
+  void _releasePendingLease(String key) {
+    final owned = _pendingLeases.remove(key);
+    if (owned != null) {
+      RequestCache.releasePending(owned.lease, owned.owner);
+    }
+  }
+
+  void _cancelKey(String key, String reason) {
+    final hadLease = _pendingLeases.containsKey(key);
+    _releasePendingLease(key);
+    final token = _cancelTokens.remove(key);
+    if (!hadLease && token != null && !token.isCancelled) {
+      token.cancel(reason);
+    }
+  }
+
+  void _watchCacheKey(String? cacheKey) {
+    if (_activeCacheKey == cacheKey && _removeCacheListener != null) return;
+    _removeCacheListener?.call();
+    _removeCacheListener = null;
+    _activeCacheKey = cacheKey;
+    if (cacheKey == null || cacheKey.isEmpty) return;
+    _removeCacheListener = RequestCache.listen(cacheKey, (event) {
+      if (!_acceptCacheEvents || !mounted) return;
+      if (event.cleared) {
+        if (_lastKey case final key?) {
+          _requestCounts[key] = (_requestCounts[key] ?? 0) + 1;
+        }
+        _loadingDelayController?.endLoading();
+        state = state.copyWith(
+          loading: false,
+          loadingMore: false,
+          clearData: true,
+        );
+      } else if (event.data == null || event.data is TData) {
+        // 同一页的共享消费者会各自合并；提前接收另一消费者的完成结果
+        // 会把该页追加两次。mutate/setCache 仍实时更新合并基准。
+        if (event.requestCompletion && state.loadingMore) return;
+        state = state.copyWith(
+          data: event.data as TData?,
+          clearData: event.data == null,
+          clearError: true,
+        );
+      }
+    });
+  }
 
   bool _runIfInvocable(Object? candidate) {
     final resolved = _resolveInvocableParams<TParams>(candidate);
@@ -109,14 +161,29 @@ class UseRequestNotifier<TData, TParams>
     }
   }
 
+  /// 以最近一次参数执行；没有历史参数时使用 defaultParams。
+  void runWithLastOrDefaultParams() => _runWithLastOrDefaultParams();
+
+  /// 当前轮询控制器是否正在运行。
+  bool get isPolling => _pollingState.value;
+
+  ValueListenable<bool> get pollingListenable => _pollingState;
+
+  void _notifyPollingStateChange() {
+    _pollingState.value = _pollingController?.isRunning ?? false;
+  }
+
   /// 对外暴露一个只读快照，避免 UI 层直接访问 StateNotifier 的受保护成员 `state`。
   ///
   /// 这样 Builder / mixin 仍然能在首帧同步拿到当前状态，但不会踩到 analyzer
   /// 对 protected 成员的可见性约束。
   UseRequestState<TData, TParams> get currentState => state;
 
-  UseRequestNotifier({required this.service, required this.options})
-    : super(_buildInitialState<TData, TParams>(options)) {
+  UseRequestNotifier({
+    required this.service,
+    required this.options,
+    bool startAutomatically = true,
+  }) : super(_buildInitialState<TData, TParams>(options)) {
     _ready = options.ready;
     _lastRefreshDeps = options.refreshDeps == null
         ? null
@@ -126,19 +193,24 @@ class UseRequestNotifier<TData, TParams>
       throw ArgumentError('debounceInterval 与 throttleInterval 不能同时设置，请二选一');
     }
 
-    final initialParams = _resolveInvocableParams<TParams>(
-      options.defaultParams,
-    );
-    if (initialParams.isValid) {
+    // 与既有 Hook 语义一致：null defaultParams 只表示“尚未执行”。
+    // 无参请求会在真正自动执行时记录一次 Null 参数，不能在构造阶段
+    // 提前把它当作可供 ready/refreshDeps 重放的历史调用。
+    final initialParams = options.defaultParams == null
+        ? null
+        : _resolveInvocableParams<TParams>(options.defaultParams);
+    if (initialParams != null && initialParams.isValid) {
       final params = initialParams.params as TParams;
       final key = _getKey(params);
       _lastParamsByKey[key] = params;
       _lastKey = key;
+      final cacheKey = options.cacheKey?.call(params);
+      _watchCacheKey(cacheKey);
     }
     _initializeUtilities();
 
     // 非手动模式自动请求
-    if (!options.manual && _ready) {
+    if (startAutomatically && !options.manual && _ready) {
       _runIfInvocable(options.defaultParams);
     }
   }
@@ -166,7 +238,12 @@ class UseRequestNotifier<TData, TParams>
       onFocus: () {
         if (_lastKey != null && _hasLastInvocationForKey(_lastKey!) && _ready) {
           if (options.refreshOnFocus) {
-            refresh();
+            final now = DateTime.now();
+            final last = _lastFocusRefreshAt;
+            if (last == null || now.difference(last) >= options.focusTimespan) {
+              _lastFocusRefreshAt = now;
+              refresh();
+            }
           }
           if (options.pollingInterval != null && !options.pollingWhenHidden) {
             _pollingController?.resume();
@@ -224,6 +301,7 @@ class UseRequestNotifier<TData, TParams>
     if (options.pollingInterval != null) {
       _pollingController = PollingController<TData>(
         interval: options.pollingInterval!,
+        onStateChange: (_) => _notifyPollingStateChange(),
         action: () {
           // 注意：当配置了 loadMoreParams（分页模式）时，轮询使用 defaultParams
           // 刷新首页数据，而非使用 lastParams（可能是某一页的参数），
@@ -301,6 +379,8 @@ class UseRequestNotifier<TData, TParams>
     String key,
     TParams params,
     int currentRequestCount, {
+    required String cacheKey,
+    required int cacheGeneration,
     bool isLoadMore = false,
   }) async {
     if (isLoadMore) {
@@ -354,6 +434,11 @@ class UseRequestNotifier<TData, TParams>
       try {
         options.onSuccess?.call(mergedResult, params);
       } catch (_) {}
+      RequestCache.setIfGeneration<TData>(
+        cacheKey,
+        mergedResult,
+        cacheGeneration,
+      );
       try {
         options.onFinally?.call(params, mergedResult, null);
       } catch (_) {}
@@ -392,6 +477,7 @@ class UseRequestNotifier<TData, TParams>
     TParams params, {
     bool isLoadMore = false,
   }) async {
+    _acceptCacheEvents = true;
     final currentRequestCount = (_requestCounts[key] ?? 0) + 1;
     _requestCounts[key] = currentRequestCount;
 
@@ -414,25 +500,28 @@ class UseRequestNotifier<TData, TParams>
     // 读取缓存
     TData? cachedData;
     final cacheKey = options.cacheKey?.call(params);
+    _watchCacheKey(cacheKey);
     if (cacheKey != null && cacheKey.isNotEmpty) {
-      final pending = getPendingCache<TData>(cacheKey);
-      if (pending != null) {
+      final owner = Object();
+      final lease = RequestCache.acquirePending<TData>(cacheKey, owner);
+      if (lease != null) {
         // 复用 pending 前不能取消旧令牌，否则会把共享的 Dio Future 一并取消。
-        final existingToken = _cancelTokens[key];
-        if (existingToken == null || existingToken.isCancelled) {
-          final configToken = params is HttpRequestConfig
-              ? params.cancelToken
-              : null;
-          _cancelTokens[key] = createLinkedCancelToken(
-            options.cancelToken,
-            configToken,
-          );
-        }
+        _cancelKey(key, 'Pending request superseded');
+        _pendingLeases[key] = (lease: lease, owner: owner);
+        final configToken = params is HttpRequestConfig
+            ? params.cancelToken
+            : null;
+        _cancelTokens[key] = createLinkedCancelToken(
+          options.cancelToken,
+          configToken,
+        );
         return _bindPendingRequest(
-          pending,
+          lease.future,
           key,
           params,
           currentRequestCount,
+          cacheKey: cacheKey,
+          cacheGeneration: lease.generation,
           isLoadMore: isLoadMore,
         );
       }
@@ -465,7 +554,7 @@ class UseRequestNotifier<TData, TParams>
     }
 
     // 未命中 pending，当前调用将发起新请求，此时再取消同 key 的旧请求。
-    _cancelTokens[key]?.cancel('New request started');
+    _cancelKey(key, 'New request started');
     final configToken = params is HttpRequestConfig ? params.cancelToken : null;
     final cancelToken = createLinkedCancelToken(
       options.cancelToken,
@@ -522,6 +611,7 @@ class UseRequestNotifier<TData, TParams>
           () => service(callParams),
           maxRetries: options.retryCount!,
           retryInterval: options.retryInterval ?? const Duration(seconds: 1),
+          shouldRetry: options.shouldRetry,
           cancelToken: cancelToken,
           onRetry: (attempt, err) {
             options.onRetryAttempt?.call(attempt, err);
@@ -529,13 +619,39 @@ class UseRequestNotifier<TData, TParams>
           exponential: options.retryExponential,
         );
         if (cacheKey != null && cacheKey.isNotEmpty) {
-          setPendingCache<TData>(cacheKey, future);
+          final owner = Object();
+          final lease = RequestCache.setPendingOwned<TData>(
+            cacheKey,
+            future,
+            owner,
+            // 普通 Future 无法中断正在执行的 action，但最后一个消费者退出时
+            // 仍需终止 retry backoff，避免无人持有的请求继续发起下一次尝试。
+            cancelWhenUnused: () {
+              if (!cancelToken.isCancelled) {
+                cancelToken.cancel('No request consumers');
+              }
+            },
+          );
+          _pendingLeases[key] = (lease: lease, owner: owner);
         }
         result = await future;
       } else {
         final future = service(callParams);
         if (cacheKey != null && cacheKey.isNotEmpty) {
-          setPendingCache<TData>(cacheKey, future);
+          final owner = Object();
+          final lease = RequestCache.setPendingOwned<TData>(
+            cacheKey,
+            future,
+            owner,
+            cancelWhenUnused: params is HttpRequestConfig
+                ? () {
+                    if (!cancelToken.isCancelled) {
+                      cancelToken.cancel('No request consumers');
+                    }
+                  }
+                : null,
+          );
+          _pendingLeases[key] = (lease: lease, owner: owner);
         }
         result = await future;
       }
@@ -578,14 +694,21 @@ class UseRequestNotifier<TData, TParams>
 
       // 写入缓存
       if (cacheKey != null && cacheKey.isNotEmpty) {
-        setCache<TData>(cacheKey, mergedResult);
+        final generation = _pendingLeases[key]?.lease.generation;
+        if (generation != null) {
+          RequestCache.setIfGeneration<TData>(
+            cacheKey,
+            mergedResult,
+            generation,
+          );
+        }
       }
 
       // 若配置了轮询且尚未启动，在首次成功后启动（手动模式也支持）
       if (options.pollingInterval != null &&
           _pollingController != null &&
           _lastKey != null &&
-          _lastParamsByKey[_lastKey!] != null &&
+          _hasLastInvocationForKey(_lastKey!) &&
           !_pollingController!.isRunning &&
           _ready) {
         _ensurePollingActive(_pollingController!);
@@ -750,10 +873,10 @@ class UseRequestNotifier<TData, TParams>
             options.cacheKey != null) {
           final ck = options.cacheKey!(lastParams as TParams);
           if (ck.isNotEmpty) {
-            if (newData != null) {
-              setCache<TData>(ck, newData);
+            if (newData == null) {
+              RequestCache.removeData(ck);
             } else {
-              clearCacheEntry(ck);
+              setCache<TData>(ck, newData);
             }
           }
         }
@@ -766,9 +889,11 @@ class UseRequestNotifier<TData, TParams>
   void cancel() {
     _debouncer?.cancel();
     _throttler?.cancel();
-    for (final entry in _cancelTokens.entries) {
-      entry.value?.cancel('Request cancelled by user');
-      notifyRequestObserverCancel(entry.key);
+    _acceptCacheEvents = false;
+    for (final key in _cancelTokens.keys.toList()) {
+      _requestCounts[key] = (_requestCounts[key] ?? 0) + 1;
+      _cancelKey(key, 'Request cancelled by user');
+      notifyRequestObserverCancel(key);
     }
     _loadingDelayController?.endLoading();
     if (mounted) {
@@ -788,12 +913,25 @@ class UseRequestNotifier<TData, TParams>
     _pollingController?.stop();
   }
 
+  /// 暂停轮询并取消当前请求，与 Hook 版既有 pausePolling 语义一致。
+  void pausePolling() {
+    _pollingController?.pause();
+    cancel();
+  }
+
+  /// 恢复被暂停的轮询。
+  void resumePolling() {
+    _pollingController?.resume();
+  }
+
   /// 获取上一次请求参数
   TParams? get lastParams =>
       _lastKey != null ? _lastParamsByKey[_lastKey!] : null;
 
   /// 切换 ready 状态
-  void setReady(bool ready) {
+  void setReady(bool ready) => _setReady(ready);
+
+  void _setReady(bool ready, {bool suppressAutomaticRun = false}) {
     if (_ready == ready) return;
     _pollingRetryTimer?.cancel();
     _pollingRetryTimer = null;
@@ -812,7 +950,7 @@ class UseRequestNotifier<TData, TParams>
           _runWithLastOrDefaultParams();
         }
       }
-      if (!replayedPendingWork && !options.manual) {
+      if (!replayedPendingWork && !suppressAutomaticRun && !options.manual) {
         _runWithLastOrDefaultParams();
       }
 
@@ -877,18 +1015,40 @@ class UseRequestNotifier<TData, TParams>
     final old = options;
     options = newOptions;
 
+    // ready 下降必须先于 refreshDeps 生效；否则依赖变化会读取旧的 _ready=true
+    // 并在本帧多发一次请求。ready 上升仍放在 refreshDeps 之后，用于回放待处理工作。
+    if (old.ready && !newOptions.ready) {
+      _setReady(false);
+    }
+
+    if (_lastKey case final key?) {
+      final params = _lastParamsByKey[key];
+      if (_lastParamsByKey.containsKey(key)) {
+        _watchCacheKey(options.cacheKey?.call(params as TParams));
+      }
+    }
+
     // — refreshDeps 变化 —（refreshDeps 方法内部按 listEquals 去重，未变化时无副作用）
+    var handledRefreshDepsAction = false;
     if (newOptions.refreshDeps != null) {
+      final depsChanged =
+          _lastRefreshDeps == null ||
+          !listEquals(_lastRefreshDeps, newOptions.refreshDeps);
       refreshDeps(
         newOptions.refreshDeps!,
         action: newOptions.refreshDepsAction,
       );
+      handledRefreshDepsAction =
+          depsChanged && newOptions.refreshDepsAction != null;
     }
 
     // — ready 变化 —（放在 refreshDeps 之后：deps 变化但尚未 ready 时先记为 pending，
     // 随后 setReady(true) 统一补偿触发，避免同时变化时重复请求）
-    if (old.ready != newOptions.ready) {
-      setReady(newOptions.ready);
+    if (!old.ready && newOptions.ready) {
+      _setReady(
+        newOptions.ready,
+        suppressAutomaticRun: handledRefreshDepsAction,
+      );
     }
 
     // — 防抖参数变化 —
@@ -940,6 +1100,7 @@ class UseRequestNotifier<TData, TParams>
       if (newOptions.pollingInterval != null) {
         _pollingController = PollingController<TData>(
           interval: newOptions.pollingInterval!,
+          onStateChange: (_) => _notifyPollingStateChange(),
           action: () {
             if (_lastKey != null) {
               if (_hasLastInvocationForKey(_lastKey!)) {
@@ -988,6 +1149,7 @@ class UseRequestNotifier<TData, TParams>
 
     final focusConfigurationChanged =
         old.refreshOnFocus != newOptions.refreshOnFocus ||
+        old.focusTimespan != newOptions.focusTimespan ||
         old.pollingInterval != newOptions.pollingInterval ||
         old.pollingWhenHidden != newOptions.pollingWhenHidden;
     if (focusConfigurationChanged) {
@@ -1011,8 +1173,11 @@ class UseRequestNotifier<TData, TParams>
     _loadingDelayController?.dispose();
     _focusManager?.dispose();
     _reconnectSub?.cancel();
-    for (final token in _cancelTokens.values) {
-      token?.cancel('Notifier disposed');
+    _removeCacheListener?.call();
+    _removeCacheListener = null;
+    _pollingState.dispose();
+    for (final key in _cancelTokens.keys.toList()) {
+      _cancelKey(key, 'Notifier disposed');
     }
     super.dispose();
   }

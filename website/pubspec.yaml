@@ -1,6 +1,7 @@
-name: use_request_example
-description: Minimal use_request examples.
+name: use_request_website
+description: Complete showcase site for use_request.
 publish_to: none
+version: 1.0.0+1
 
 environment:
   sdk: ^3.10.1
@@ -8,9 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_hooks: ^0.21.3+1
   use_request:
-    path: ..
+    path: ../
+  dio: ^5.9.0
+  flutter_hooks: ^0.21.3+1
+  flutter_riverpod: ^3.0.3
 
 dev_dependencies:
   flutter_test:

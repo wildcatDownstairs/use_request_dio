@@ -117,6 +117,23 @@ typedef OnFinally<TData, TParams> =
 /// ```
 typedef OnRetryAttempt<TParams> = void Function(int attempt, dynamic error);
 
+/// 当请求被更新的请求覆盖时抛出。
+class RequestSupersededException implements Exception {
+  const RequestSupersededException();
+
+  @override
+  String toString() =>
+      'RequestSupersededException: Request was superseded by a newer request';
+}
+
+/// 当请求被取消时抛出。
+class RequestCancelledException implements Exception {
+  const RequestCancelledException();
+
+  @override
+  String toString() => 'RequestCancelledException: Request was cancelled';
+}
+
 // ============================================================================
 // UseRequestOptions - 配置项
 // ============================================================================
@@ -550,6 +567,11 @@ class UseRequestOptions<TData, TParams> {
   /// ```
   final Duration? retryInterval;
 
+  /// 自定义可重试错误判断。未提供时沿用 Dio 网络错误与 5xx 策略。
+  ///
+  /// 普通 Future 的业务错误需要显式返回 `true` 才会重试。
+  final bool Function(dynamic error)? shouldRetry;
+
   /// 是否使用指数退避重试
   ///
   /// - `true`（默认）：重试间隔指数增长（1s -> 2s -> 4s -> 8s...）
@@ -587,6 +609,9 @@ class UseRequestOptions<TData, TParams> {
   /// )
   /// ```
   final bool refreshOnFocus;
+
+  /// 两次聚焦刷新之间的最小间隔。
+  final Duration focusTimespan;
 
   /// 网络重连时是否自动刷新
   ///
@@ -783,11 +808,13 @@ class UseRequestOptions<TData, TParams> {
     // 重试配置
     this.retryCount,
     this.retryInterval,
+    this.shouldRetry,
     this.retryExponential = true,
     // 加载状态
     this.loadingDelay,
     // 自动刷新
     this.refreshOnFocus = false,
+    this.focusTimespan = const Duration(seconds: 5),
     this.refreshOnReconnect = false,
     this.reconnectStream,
     // 缓存配置
@@ -848,9 +875,11 @@ class UseRequestOptions<TData, TParams> {
     bool? throttleTrailing,
     Object? retryCount = _useRequestOptionsUnset,
     Object? retryInterval = _useRequestOptionsUnset,
+    Object? shouldRetry = _useRequestOptionsUnset,
     bool? retryExponential,
     Object? loadingDelay = _useRequestOptionsUnset,
     bool? refreshOnFocus,
+    Duration? focusTimespan,
     bool? refreshOnReconnect,
     Object? reconnectStream = _useRequestOptionsUnset,
     Object? cacheKey = _useRequestOptionsUnset,
@@ -920,11 +949,15 @@ class UseRequestOptions<TData, TParams> {
       retryInterval: identical(retryInterval, _useRequestOptionsUnset)
           ? this.retryInterval
           : retryInterval as Duration?,
+      shouldRetry: identical(shouldRetry, _useRequestOptionsUnset)
+          ? this.shouldRetry
+          : shouldRetry as bool Function(dynamic error)?,
       retryExponential: retryExponential ?? this.retryExponential,
       loadingDelay: identical(loadingDelay, _useRequestOptionsUnset)
           ? this.loadingDelay
           : loadingDelay as Duration?,
       refreshOnFocus: refreshOnFocus ?? this.refreshOnFocus,
+      focusTimespan: focusTimespan ?? this.focusTimespan,
       refreshOnReconnect: refreshOnReconnect ?? this.refreshOnReconnect,
       reconnectStream: identical(reconnectStream, _useRequestOptionsUnset)
           ? this.reconnectStream
@@ -992,6 +1025,7 @@ class UseRequestOptions<TData, TParams> {
         other.throttleTrailing == throttleTrailing &&
         other.retryExponential == retryExponential &&
         other.refreshOnFocus == refreshOnFocus &&
+        other.focusTimespan == focusTimespan &&
         other.refreshOnReconnect == refreshOnReconnect &&
         other.connectTimeout == connectTimeout &&
         other.receiveTimeout == receiveTimeout &&
@@ -1022,6 +1056,7 @@ class UseRequestOptions<TData, TParams> {
       throttleTrailing,
       retryExponential,
       refreshOnFocus,
+      focusTimespan,
       refreshOnReconnect,
     );
     final h2 = Object.hash(
