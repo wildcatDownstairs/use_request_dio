@@ -378,6 +378,25 @@ Future<void> _pumpFrames(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('notebook layout fits mobile and desktop widths', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [390.0, 1100.0, 1440.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpWidget(
+        const ProviderScope(child: UseRequestShowcaseApp()),
+      );
+      await _pumpFrames(tester);
+      expect(
+        find.text('FIELD NOTES'),
+        width >= 1100 ? findsOneWidget : findsNothing,
+      );
+      expect(tester.takeException(), isNull, reason: 'width=$width');
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
   setUp(() {
     HttpOverrides.global = _MockHttpOverrides();
   });

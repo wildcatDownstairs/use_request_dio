@@ -18,18 +18,16 @@ const Map<String, dynamic> _githubHeaders = {
   'User-Agent': 'use-request-showcase',
 };
 
-/// Claude 暖色 + Zed 线稿风格调色板。
 class _Ink {
-  static const paper = Color(0xFFF3EFE7); // 米白背景
-  static const panel = Color(0xFFFAF8F2); // 卡片填充
-  static const grid = Color(0x14000000); // 线稿网格
-  static const gridStrong = Color(0x24000000); // 角标十字
-  static const hairline = Color(0xFFDED8CB); // 卡片描边
-  static const ink = Color(0xFF201D18); // 主文字
-  static const muted = Color(0xFF6B6459); // 次文字
-  static const clay = Color(0xFFD97757); // Claude 主强调色
-  static const clayDeep = Color(0xFFB0512B); // 深强调（文字）
-  static const clayTint = Color(0x1AD97757); // 强调浅底
+  static const paper = Color(0xFFFAFAF8);
+  static const panel = Color(0xF5FAFAF8);
+  static const grid = Color(0x0CB0BDCF);
+  static const gridStrong = Color(0x20B0BDCF);
+  static const hairline = Color(0xFFD9DEE8);
+  static const ink = Color(0xFF20242B);
+  static const muted = Color(0xFF626B79);
+  static const blue = Color(0xFF245CFF);
+  static const blueTint = Color(0x0F245CFF);
 }
 
 /// useRequest 渐进式展示站点。
@@ -45,24 +43,50 @@ class UseRequestShowcaseApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFFD97757),
+      seedColor: const Color(0xFF245CFF),
       brightness: Brightness.light,
+      primary: _Ink.blue,
+      surface: _Ink.paper,
+      onSurface: _Ink.ink,
+      outline: _Ink.hairline,
+      secondaryContainer: _Ink.blueTint,
+      onSecondaryContainer: _Ink.blue,
     );
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'useRequest Progressive GitHub Showcase',
+      title: 'useRequest — The request notebook',
       theme: ThemeData(
         colorScheme: colorScheme,
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF3EFE7),
-        fontFamily: 'Avenir',
+        scaffoldBackgroundColor: const Color(0xFFFAFAF8),
+        fontFamily: 'IBM Plex Mono',
+        dividerColor: _Ink.hairline,
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(2)),
+            ),
+            elevation: 0,
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(2)),
+            ),
+            side: const BorderSide(color: _Ink.hairline),
+          ),
+        ),
+        chipTheme: const ChipThemeData(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(2)),
+          ),
+        ),
         cardTheme: CardThemeData(
           elevation: 0,
           margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
         ),
       ),
       home: const ProgressiveExamplePage(),
@@ -159,7 +183,9 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
     if (context != null) {
       Scrollable.ensureVisible(
         context,
-        duration: const Duration(milliseconds: 460),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 140),
         curve: Curves.easeOutCubic,
         alignment: 0.08,
       );
@@ -168,134 +194,237 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 1080;
-
+    final desktop = MediaQuery.sizeOf(context).width >= 1100;
     return Scaffold(
       body: Stack(
         children: [
           const _DecorativeBackdrop(),
           SafeArea(
-            child: Row(
-              children: [
-                if (isDesktop)
-                  SizedBox(
-                    width: 292,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 18, 8, 18),
-                      child: _GlassPanel(
-                        padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1240),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    border: Border.symmetric(
+                      vertical: BorderSide(color: _Ink.hairline),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        height: 60,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        decoration: const BoxDecoration(
+                          color: _Ink.paper,
+                          border: Border(
+                            bottom: BorderSide(color: _Ink.hairline),
+                          ),
+                        ),
+                        child: Row(
                           children: [
-                            _buildSidebarHeader(context),
-                            const SizedBox(height: 16),
-                            Expanded(
-                              child: ListView.builder(
-                                itemCount: _sections.length,
-                                itemBuilder: (context, index) {
-                                  final section = _sections[index];
-                                  final selected = _selectedIndex == index;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(14),
-                                      onTap: () => _scrollToSection(index),
-                                      child: AnimatedContainer(
-                                        duration: const Duration(
-                                          milliseconds: 220,
-                                        ),
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          color: selected
-                                              ? const Color(0x26D97757)
-                                              : Colors.transparent,
-                                          border: Border.all(
-                                            color: selected
-                                                ? const Color(0xFFCF7550)
-                                                : const Color(0x33FFFFFF),
-                                          ),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              section.level,
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: selected
-                                                    ? const Color(0xFFB0512B)
-                                                    : const Color(0xFF64748B),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              section.title,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 14,
-                                                color: selected
-                                                    ? const Color(0xFF7A3B22)
-                                                    : const Color(0xFF1E293B),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
+                            const Icon(
+                              Icons.data_object,
+                              color: _Ink.blue,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'useRequest',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Roboto',
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
+                            TextButton(
+                              onPressed: () => _scrollToSection(0),
+                              child: const Text('Examples'),
+                            ),
+                            if (desktop)
+                              TextButton(
+                                onPressed: () => _scrollToSection(3),
+                                child: const Text('Options'),
+                              ),
                           ],
                         ),
                       ),
-                    ),
-                  ),
-                Expanded(
-                  child: Scrollbar(
-                    controller: _scrollController,
-                    child: SingleChildScrollView(
-                      controller: _scrollController,
-                      padding: EdgeInsets.fromLTRB(
-                        isDesktop ? 14 : 16,
-                        18,
-                        isDesktop ? 22 : 16,
-                        26,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildHero(context),
-                          if (!isDesktop) ...[
-                            const SizedBox(height: 14),
-                            _buildTopNav(),
-                          ],
-                          const SizedBox(height: 16),
-                          ..._sections.asMap().entries.map((entry) {
-                            final index = entry.key;
-                            final section = entry.value;
-                            return Padding(
-                              key: section.key,
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: _DemoSectionCard(
-                                section: section,
-                                index: index,
-                                isSelected: _selectedIndex == index,
-                                onActivate: () => _scrollToSection(index),
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (desktop)
+                              SizedBox(
+                                width: 210,
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: _Ink.panel,
+                                    border: Border(
+                                      right: BorderSide(color: _Ink.hairline),
+                                    ),
+                                  ),
+                                  child: ListView(
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          20,
+                                          30,
+                                          20,
+                                          16,
+                                        ),
+                                        child: Text(
+                                          'EXAMPLES / 01—05',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            letterSpacing: 1.3,
+                                            color: _Ink.muted,
+                                          ),
+                                        ),
+                                      ),
+                                      for (var i = 0; i < _sections.length; i++)
+                                        _navItem(i),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            );
-                          }),
-                        ],
+                            Expanded(
+                              child: Scrollbar(
+                                controller: _scrollController,
+                                child: SingleChildScrollView(
+                                  controller: _scrollController,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      _buildHero(context),
+                                      if (!desktop)
+                                        SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: Row(
+                                            children: [
+                                              for (
+                                                var i = 0;
+                                                i < _sections.length;
+                                                i++
+                                              )
+                                                SizedBox(
+                                                  width: 190,
+                                                  child: _navItem(i),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      for (var i = 0; i < _sections.length; i++)
+                                        Padding(
+                                          key: _sections[i].key,
+                                          padding: EdgeInsets.zero,
+                                          child: _DemoSectionCard(
+                                            section: _sections[i],
+                                            index: i,
+                                            isSelected: _selectedIndex == i,
+                                            onActivate: () =>
+                                                _scrollToSection(i),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (desktop)
+                              SizedBox(
+                                width: 190,
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: _Ink.panel,
+                                    border: Border(
+                                      left: BorderSide(color: _Ink.hairline),
+                                    ),
+                                  ),
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.all(20),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const SizedBox(height: 10),
+                                        const Text(
+                                          'FIELD NOTES',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            letterSpacing: 1.3,
+                                            color: _Ink.muted,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        Text(
+                                          _sections[_selectedIndex].level,
+                                          style: const TextStyle(
+                                            color: _Ink.blue,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        const Text(
+                                          'Parameters',
+                                          style: TextStyle(
+                                            fontFamily: 'Instrument Serif',
+                                            fontSize: 25,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        for (final tag
+                                            in _sections[_selectedIndex].tags)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 14,
+                                            ),
+                                            child: Text(
+                                              tag,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: _Ink.muted,
+                                              ),
+                                            ),
+                                          ),
+                                        const Divider(height: 32),
+                                        const Text(
+                                          'GitHub REST API',
+                                          style: TextStyle(fontSize: 11),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        const Text(
+                                          '切换参数，观察请求状态与事件日志。展开源码查看对应实现。',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            height: 1.8,
+                                            color: _Ink.muted,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        const Text(
+                                          '公共 API 有请求频率限制。',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            height: 1.7,
+                                            color: _Ink.muted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ],
@@ -303,157 +432,98 @@ class _ProgressiveExamplePageState extends State<ProgressiveExamplePage> {
     );
   }
 
-  Widget _buildSidebarHeader(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFD97757), Color(0xFFEBA986)],
-                ),
+  Widget _navItem(int index) {
+    final selected = index == _selectedIndex;
+    return Material(
+      color: selected ? _Ink.blueTint : Colors.transparent,
+      child: InkWell(
+        onTap: () => _scrollToSection(index),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: selected ? _Ink.blue : Colors.transparent,
+                width: 2,
               ),
-              child: const Text(
-                'useRequest',
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _sections[index].level,
                 style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: 0.2,
+                  fontSize: 11,
+                  color: selected ? _Ink.blue : _Ink.muted,
                 ),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                color: const Color(0x26D97757),
+              const SizedBox(height: 6),
+              Text(
+                _sections[index].title,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.6,
+                  color: selected ? _Ink.blue : _Ink.ink,
+                ),
               ),
-              child: const Text('GitHub API', style: TextStyle(fontSize: 11)),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          '渐进式示例导航',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 4),
-      ],
+      ),
     );
   }
 
   Widget _buildHero(BuildContext context) {
-    return _GlassPanel(
-      padding: const EdgeInsets.all(20),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'useRequest Progressive Demo · GitHub Public API',
+            'FLUTTER / ASYNC REQUESTS',
             style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFFB0512B),
-              letterSpacing: 0.1,
+              fontSize: 10,
+              letterSpacing: 1.5,
+              color: _Ink.muted,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
+          const SizedBox(height: 14),
+          const Text(
+            'The request notebook.',
+            style: TextStyle(
+              fontFamily: 'Instrument Serif',
+              fontSize: 40,
+              height: 1.1,
+              color: _Ink.blue,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
             '从基础请求到全量 Options 实验台',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF102A43),
-            ),
+            style: TextStyle(fontSize: 14, height: 1.7),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
-            '每个示例默认先展示运行效果，底部面板可展开查看源码（含关键字高亮）。\n右侧示例均为真实 GitHub REST API 请求。',
-            style: TextStyle(
-              height: 1.42,
-              color: Color(0xFF475569),
-              fontSize: 13,
-            ),
+            '五组可交互示例，连接真实 GitHub API。调整参数、观察状态，再阅读源码。',
+            style: TextStyle(fontSize: 12, height: 1.8, color: _Ink.muted),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
           Wrap(
-            spacing: 8,
+            spacing: 12,
             runSpacing: 8,
-            children: const [
-              _TopBadge(label: 'useRequestFn'),
-              _TopBadge(label: '自动/手动请求'),
-              _TopBadge(label: '防抖/节流'),
-              _TopBadge(label: '轮询/重试/超时'),
-              _TopBadge(label: '缓存/并发/加载更多'),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
             children: [
-              FilledButton.tonalIcon(
+              OutlinedButton(
                 onPressed: () => _scrollToSection(4),
-                icon: const Icon(Icons.new_releases_outlined),
-                label: const Text('先看最新：useRequestFn'),
+                child: const Text('useRequestFn ↗'),
               ),
-              OutlinedButton.icon(
+              TextButton(
                 onPressed: () => _scrollToSection(3),
-                icon: const Icon(Icons.tune),
-                label: const Text('查看全量 Options 实验台'),
+                child: const Text('Options 实验台 →'),
               ),
             ],
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'GitHub Pages 预览当前只挂载正在查看的示例，未选中的卡片不会启动 Hook、请求和源码高亮。这样能减少首屏请求数，也能缓解 Flutter Web 上的滚动和输入卡顿。',
-            style: TextStyle(
-              height: 1.42,
-              color: Color(0xFF64748B),
-              fontSize: 12.5,
-            ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTopNav() {
-    return _GlassPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: _sections.asMap().entries.map((entry) {
-            final index = entry.key;
-            final section = entry.value;
-            final selected = _selectedIndex == index;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: FilledButton.tonal(
-                style: FilledButton.styleFrom(
-                  backgroundColor: selected
-                      ? const Color(0xFFD97757)
-                      : const Color(0x33FFFFFF),
-                  foregroundColor: selected
-                      ? Colors.white
-                      : const Color(0xFF0F172A),
-                ),
-                onPressed: () => _scrollToSection(index),
-                child: Text('${section.level} · ${section.title}'),
-              ),
-            );
-          }).toList(),
-        ),
       ),
     );
   }
@@ -525,7 +595,7 @@ class _DemoSectionCardState extends State<_DemoSectionCard> {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassPanel(
+    return _PaperPanel(
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -536,20 +606,13 @@ class _DemoSectionCardState extends State<_DemoSectionCard> {
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
             decoration: BoxDecoration(
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
+                top: Radius.circular(2),
               ),
-              gradient: LinearGradient(
-                colors: [
-                  widget.index.isEven
-                      ? const Color(0x26D97757)
-                      : const Color(0x2699897E),
-                  const Color(0x19FFFFFF),
-                ],
-              ),
+              color: _Ink.panel,
               border: Border(
                 bottom: BorderSide(
                   color: widget.isSelected
-                      ? const Color(0xFFCF7550)
+                      ? const Color(0xFF245CFF)
                       : const Color(0x33A7B2C5),
                 ),
               ),
@@ -577,7 +640,8 @@ class _DemoSectionCardState extends State<_DemoSectionCard> {
                 Text(
                   widget.section.title,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: 'Instrument Serif',
                     color: const Color(0xFF0F172A),
                   ),
                 ),
@@ -603,7 +667,9 @@ class _DemoSectionCardState extends State<_DemoSectionCard> {
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 140),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               // GitHub Pages 的 Web 预览不再同时挂载所有 demo，
@@ -648,7 +714,7 @@ class _InactiveDemoPlaceholder extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(2),
         color: Colors.white.withValues(alpha: 0.6),
         border: Border.all(color: const Color(0x337D8FA8)),
       ),
@@ -656,16 +722,16 @@ class _InactiveDemoPlaceholder extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '当前未挂载此示例',
+            '开始实验',
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 14,
-              color: Color(0xFF7A3B22),
+              color: _Ink.ink,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            '为了降低 GitHub Pages 上的 Flutter Web 卡顿，未选中的卡片不会启动真实请求、Hook 逻辑和源码高亮。点击下面按钮后，再加载“$title”的运行效果。',
+            '加载“$title”，调整参数并观察运行结果。',
             style: const TextStyle(
               fontSize: 12.5,
               height: 1.45,
@@ -879,7 +945,7 @@ class _BasicAutoRequestDemo extends HookWidget {
         const SizedBox(height: 12),
         if (!ready.value)
           const _InfoBanner(
-            color: Color(0xFF92400E),
+            color: _Ink.muted,
             message: 'ready=false：当前不会发起自动请求。',
           ),
         if (request.loading)
@@ -898,9 +964,8 @@ class _BasicAutoRequestDemo extends HookWidget {
         if (request.data != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: _GlassPanel(
+            child: _PaperPanel(
               padding: const EdgeInsets.all(14),
-              blur: 8,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1506,9 +1571,8 @@ class _PollingRetryDemo extends HookWidget {
         if (request.data != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: _GlassPanel(
+            child: _PaperPanel(
               padding: const EdgeInsets.all(14),
-              blur: 8,
               child: Wrap(
                 spacing: 16,
                 runSpacing: 8,
@@ -2524,8 +2588,7 @@ class _OptionGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassPanel(
-      blur: 6,
+    return _PaperPanel(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2677,11 +2740,11 @@ class _ClosureVsParamsDemo extends HookWidget {
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(2),
               borderSide: const BorderSide(color: _Ink.hairline),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(2),
               borderSide: const BorderSide(color: _Ink.hairline),
             ),
           ),
@@ -2696,13 +2759,13 @@ class _ClosureVsParamsDemo extends HookWidget {
               label: Text(_sortLabels[i]),
               selected: selected,
               onSelected: (_) => sortTab.value = i,
-              selectedColor: _Ink.clayTint,
+              selectedColor: _Ink.blueTint,
               backgroundColor: Colors.white,
-              side: BorderSide(color: selected ? _Ink.clay : _Ink.hairline),
+              side: BorderSide(color: selected ? _Ink.blue : _Ink.hairline),
               labelStyle: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: selected ? _Ink.clayDeep : _Ink.muted,
+                color: selected ? _Ink.blue : _Ink.muted,
               ),
             );
           }),
@@ -2713,10 +2776,10 @@ class _ClosureVsParamsDemo extends HookWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: matched ? _Ink.clayTint : const Color(0x1FB91C1C),
-            borderRadius: BorderRadius.circular(10),
+            color: matched ? _Ink.blueTint : const Color(0x1FB91C1C),
+            borderRadius: BorderRadius.circular(2),
             border: Border.all(
-              color: matched ? _Ink.clay : const Color(0x55B91C1C),
+              color: matched ? _Ink.blue : const Color(0x55B91C1C),
             ),
           ),
           child: Column(
@@ -2727,14 +2790,14 @@ class _ClosureVsParamsDemo extends HookWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: matched ? _Ink.clayDeep : const Color(0xFFB91C1C),
+                  color: matched ? _Ink.blue : const Color(0xFFB91C1C),
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 'GET /search/repositories?sort=${sentSort.value}',
                 style: const TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: 'IBM Plex Mono',
                   fontSize: 13,
                   color: _Ink.ink,
                 ),
@@ -2747,7 +2810,7 @@ class _ClosureVsParamsDemo extends HookWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: matched ? _Ink.clayDeep : const Color(0xFFB91C1C),
+                  color: matched ? _Ink.blue : const Color(0xFFB91C1C),
                 ),
               ),
             ],
@@ -2759,7 +2822,7 @@ class _ClosureVsParamsDemo extends HookWidget {
             padding: EdgeInsets.symmetric(vertical: 8),
             child: LinearProgressIndicator(minHeight: 3),
           ),
-        _GlassPanel(
+        _PaperPanel(
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2785,7 +2848,7 @@ class _ClosureVsParamsDemo extends HookWidget {
           message: isClosure.value
               ? '闭包模式：请求条件全部从闭包读取，切 tab 后 sort 始终跟随当前选择。'
               : '参数模式：切 tab 时 refreshDeps 触发 refresh()，复用上一次请求参数，sort 卡在旧值。先切几次排序 tab 看接口发送的 sort。',
-          color: isClosure.value ? _Ink.clayDeep : const Color(0xFFB91C1C),
+          color: isClosure.value ? _Ink.blue : const Color(0xFFB91C1C),
         ),
       ],
     );
@@ -2807,13 +2870,13 @@ class _ModeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(2),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         decoration: BoxDecoration(
-          color: active ? _Ink.clay : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: active ? _Ink.clay : _Ink.hairline),
+          color: active ? _Ink.blue : Colors.white,
+          borderRadius: BorderRadius.circular(2),
+          border: Border.all(color: active ? _Ink.blue : _Ink.hairline),
         ),
         child: Center(
           child: Text(
@@ -2845,7 +2908,7 @@ class _DecorativeBackdrop extends StatelessWidget {
 class _WireframePainter extends CustomPainter {
   const _WireframePainter();
 
-  static const double _cell = 116; // 网格间距
+  static const double _cell = 12;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2862,22 +2925,20 @@ class _WireframePainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), line);
     }
 
-    // 网格交点的十字角标（Zed 标志性细节）
-    final cross = Paint()
+    final major = Paint()
       ..color = _Ink.gridStrong
-      ..strokeWidth = 1;
-    const double arm = 4;
-    for (double x = _cell; x < size.width; x += _cell) {
-      for (double y = _cell; y < size.height; y += _cell) {
-        canvas.drawLine(Offset(x - arm, y), Offset(x + arm, y), cross);
-        canvas.drawLine(Offset(x, y - arm), Offset(x, y + arm), cross);
-      }
+      ..strokeWidth = 0.5;
+    for (double x = 0; x < size.width; x += _cell * 5) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), major);
+    }
+    for (double y = 0; y < size.height; y += _cell * 5) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), major);
     }
 
     // 轻噪点（用固定种子，避免每帧抖动）
     final rand = Random(7);
     final grain = Paint()..color = const Color(0x0A000000);
-    final count = ((size.width * size.height) / 900).clamp(0, 4000).toInt();
+    final count = ((size.width * size.height) / 35).clamp(0, 60000).toInt();
     for (int i = 0; i < count; i++) {
       canvas.drawRect(
         Rect.fromLTWH(
@@ -2896,32 +2957,23 @@ class _WireframePainter extends CustomPainter {
 }
 
 /// Zed 风格卡片：纸面填充 + 1px 描边，去掉毛玻璃与重阴影。
-class _GlassPanel extends StatelessWidget {
-  const _GlassPanel({
+class _PaperPanel extends StatelessWidget {
+  const _PaperPanel({
     required this.child,
     this.padding = const EdgeInsets.all(12),
-    this.blur = 12,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
-  final double blur; // 兼容旧调用点，线稿风格下不再使用
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(2),
         color: _Ink.panel,
         border: Border.all(color: _Ink.hairline),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F201D18),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
       ),
       child: child,
     );
@@ -2938,15 +2990,15 @@ class _TopBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0x26D97757),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x55C87A50)),
+        color: const Color(0x26245CFF),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: const Color(0x55245CFF)),
       ),
       child: Text(
         label,
         style: const TextStyle(
           fontSize: 11,
-          color: Color(0xFFB0512B),
+          color: Color(0xFF245CFF),
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -2964,13 +3016,13 @@ class _OptionTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0x1AD97757),
-        borderRadius: BorderRadius.circular(999),
+        color: const Color(0x1A245CFF),
+        borderRadius: BorderRadius.circular(2),
       ),
       child: Text(
         label,
         style: const TextStyle(
-          color: Color(0xFFB0512B),
+          color: Color(0xFF245CFF),
           fontWeight: FontWeight.w600,
           fontSize: 11,
         ),
@@ -2998,7 +3050,7 @@ class _SwitchOption extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 200, maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(2),
         border: Border.all(color: const Color(0x447D8FA8)),
         color: Colors.white.withValues(alpha: 0.45),
       ),
@@ -3057,7 +3109,7 @@ class _SliderOption extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(2),
         border: Border.all(color: const Color(0x447D8FA8)),
         color: Colors.white.withValues(alpha: 0.45),
       ),
@@ -3079,7 +3131,7 @@ class _SliderOption extends StatelessWidget {
                 valueLabel,
                 style: const TextStyle(
                   fontSize: 12,
-                  color: Color(0xFFB0512B),
+                  color: Color(0xFF245CFF),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -3109,17 +3161,17 @@ class _StatusDot extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        color: active ? const Color(0x26D97757) : const Color(0x22A7B2C5),
+        borderRadius: BorderRadius.circular(2),
+        color: active ? const Color(0x26245CFF) : const Color(0x22A7B2C5),
         border: Border.all(
-          color: active ? const Color(0xFFD98A63) : const Color(0xFF93A5BE),
+          color: active ? const Color(0xFF245CFF) : const Color(0xFF93A5BE),
         ),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 11,
-          color: active ? const Color(0xFFB0512B) : const Color(0xFF516176),
+          color: active ? const Color(0xFF245CFF) : const Color(0xFF516176),
         ),
       ),
     );
@@ -3139,7 +3191,7 @@ class _InfoBanner extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(2),
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(message, style: TextStyle(color: color, fontSize: 12.5)),
@@ -3161,8 +3213,7 @@ class _EventLog extends StatelessWidget {
       );
     }
 
-    return _GlassPanel(
-      blur: 5,
+    return _PaperPanel(
       padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3178,7 +3229,7 @@ class _EventLog extends StatelessWidget {
               child: Text(
                 '• $log',
                 style: const TextStyle(
-                  fontFamily: 'Menlo',
+                  fontFamily: 'IBM Plex Mono',
                   fontSize: 11.5,
                   color: Color(0xFF45556A),
                 ),
@@ -3231,8 +3282,7 @@ class _SourceCodePanelState extends State<_SourceCodePanel> {
   Widget build(BuildContext context) {
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: _GlassPanel(
-        blur: 5,
+      child: _PaperPanel(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         child: Material(
           color: Colors.transparent,
@@ -3249,8 +3299,8 @@ class _SourceCodePanelState extends State<_SourceCodePanel> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
-                  borderRadius: BorderRadius.circular(12),
+                  color: _Ink.paper,
+                  borderRadius: BorderRadius.circular(2),
                 ),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -3259,10 +3309,10 @@ class _SourceCodePanelState extends State<_SourceCodePanel> {
                     child: SelectableText.rich(
                       _highlightedCode ?? const TextSpan(text: ''),
                       style: const TextStyle(
-                        fontFamily: 'Menlo',
+                        fontFamily: 'IBM Plex Mono',
                         fontSize: 12,
                         height: 1.45,
-                        color: Color(0xFFE2E8F0),
+                        color: _Ink.ink,
                       ),
                     ),
                   ),
@@ -3293,14 +3343,14 @@ TextSpan _buildHighlightedCodeSpan(String source) {
     }
 
     final token = match.group(0) ?? '';
-    Color color = const Color(0xFFE2E8F0);
+    Color color = _Ink.ink;
 
     if (token.startsWith('//')) {
-      color = const Color(0xFF86EFAC);
+      color = _Ink.muted;
     } else if (token.startsWith('"') || token.startsWith('\'')) {
-      color = const Color(0xFFFDE68A);
+      color = _Ink.ink;
     } else {
-      color = const Color(0xFF93C5FD);
+      color = _Ink.blue;
     }
 
     spans.add(
