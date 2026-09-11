@@ -9,7 +9,7 @@
 - [x] 5. 补充验证与 CI：执行库、最小 Example、展示站测试；覆盖 lib 变更后的 Web 部署；完成静态分析、Web 构建和发布清单检查。
 - [x] 6. 提供迁移方案：说明未来 Dio/Riverpod 可选 package 的职责、旧入口兼容路径、版本边界；不把拆导出文件描述成解除依赖。
 - [x] 7. GPT-6 Astra 独立 Code Review；GPT-6 Astra 修复发现；复核并记录剩余限制。
-- [ ] 8. 根代理按用户授权提交、打 v0.7.0 tag、推送、发布 pub.dev 并验证远端版本。
+- [x] 8. 根代理按用户授权提交、打 v0.7.0 tag、推送、发布 pub.dev 并验证远端版本。
 
 ## 验收约束
 
@@ -31,4 +31,4 @@
 - 根代理独立核验 15 份文档的 Markdown 本地链接，零缺失；原 example 除 11 个旧 demo 文件外均完整迁入 website。旧 HTTP POST/PUT/DELETE 独有场景已保留于双语 Dio 文档。展示站仍是原完整展示的迁移，内嵌源码文本去重留待后续。
 - 0.7.0 `flutter pub publish --dry-run` 检查归档为 117 KB，保留最小 example，排除 website、build、锁文件和内部审查/Todo。日志 `/tmp/astra-final-publish-dryrun.log`；唯一警告为尚未提交的 Git 修改，需根代理提交后重跑至零警告再实发。
 - 独立 Astra 复核已闭环：mutate(null) 不误清 pending、不保留 null 缓存条目；clear 结束 loadingDelay；ready 下降同帧不误执行；最后消费者退出停止 retry；共享分页不重复合并。最终未发现剩余产品阻塞。
-- 尚待根代理执行授权的提交、tag、推送、pub.dev 发布及远端验证；本文件勾选的是演进与 review 工作，不代表发布已完成。
+- 发布提交 `e708609` 已推送至 `origin/main`，`v0.7.0` 注解标签指向该提交；干净工作区 dry-run 为 117 KB、0 警告。pub.dev API 已确认最新版本为 0.7.0，GitHub Flutter CI 与 Pages 部署均成功。
